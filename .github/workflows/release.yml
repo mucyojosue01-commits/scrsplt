@@ -1,0 +1,70 @@
+name: Publish DualView release
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build Android APK
+        run: gradle --no-daemon :android:assembleDebug
+      - name: Prepare Android release file
+        run: |
+          APK=$(find android/build/outputs/apk/debug -maxdepth 1 -type f -name '*.apk' | head -n 1)
+          test -n "$APK"
+          cp "$APK" DualView-Android-Companion.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-release
+          path: DualView-Android-Companion.apk
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install
+      - name: Download portable scrcpy and ADB
+        shell: pwsh
+        run: |
+          $release = Invoke-RestMethod -Headers @{ "User-Agent" = "DualView-CI" } -Uri "https://api.github.com/repos/Genymobile/scrcpy/releases/latest"
+          $asset = $release.assets | Where-Object { $_.name -match '^scrcpy-win64-v.*\.zip$' } | Select-Object -First 1
+          if (-not $asset) { throw "Could not find the official Windows x64 scrcpy release asset." }
+          New-Item -ItemType Directory -Force -Path "vendor/scrcpy" | Out-Null
+          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "scrcpy.zip"
+          Expand-Archive -Path "scrcpy.zip" -DestinationPath "vendor/unpacked" -Force
+          $folder = Get-ChildItem "vendor/unpacked" -Directory | Select-Object -First 1
+          Copy-Item "$($folder.FullName)/*" "vendor/scrcpy/" -Recurse -Force
+          if (-not (Test-Path "vendor/scrcpy/scrcpy.exe") -or -not (Test-Path "vendor/scrcpy/adb.exe")) { throw "scrcpy or ADB was missing from the official archive." }
+      - name: Build Windows installer
+        run: npm run dist:win
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: release/*.exe
+  release:
+    needs: [android, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-files
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            release-files/android-release/DualView-Android-Companion.apk
+            release-files/windows-release/*.exe
