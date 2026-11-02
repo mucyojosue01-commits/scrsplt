@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildScrcpyArgs, parseAdbDevices } from "../../electron/device-manager";
+import { buildScrcpyArgs, parseAdbDevices } from "../shared/adb";
 
 describe("parseAdbDevices", () => {
   it("parses connected Android devices and their model names", () => {
