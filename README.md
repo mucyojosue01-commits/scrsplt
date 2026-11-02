@@ -1,28 +1,35 @@
 # DualView
 
-DualView is a Windows desktop application with an Android companion. It opens the connected phone display in a separate desktop video window, positioned on the left side of the PC desktop, while the DualView control panel remains available.
+DualView is a Windows desktop application with two Android modes: mirror a physical phone over USB, or launch an independent Android virtual device on the PC.
 
-## What works in this milestone
+## Feature 1: Phone screen over USB
 
 - Windows desktop control panel built with Electron, React and TypeScript.
-- Android companion APK with USB setup guidance.
-- USB Android discovery through ADB.
+- USB Android discovery through the bundled ADB runtime.
 - Phone screen/video mirroring through the official scrcpy runtime.
-- The Windows installer bundles scrcpy and ADB so the PC does not need its own internet connection after the installer has been downloaded and installed.
+- The Windows installer bundles scrcpy and ADB, so the PC does not need internet after the installer has been transferred and installed.
 - Phone and PC communicate over USB for mirroring. No hotspot or cloud relay is required.
+
+## Feature 2: Android on PC
+
+- The **Android on PC** workspace detects an installed Android SDK Emulator and lists available Android Virtual Devices (AVDs).
+- Select an AVD and start it directly from DualView; close it from DualView as well.
+- This is an independent Android virtual phone running on Windows, not a mirror of the physical phone.
+- Requires Android Studio / Android SDK with the Android Emulator component and at least one AVD created in Device Manager.
+- DualView detects the standard Windows SDK locations and the `ANDROID_HOME` / `ANDROID_SDK_ROOT` environment variables.
+- Create and boot the AVD once while the required Android system image is available. After the system image is installed, the emulator can run offline.
+- Android inside the emulator uses the PC's network. To use the phone's mobile data when the PC has no separate internet, enable USB tethering on the connected phone. Initial Android system-image downloads are large and must be prepared before going offline.
 
 ## Install
 
-1. Download and install `DualView-Setup-0.2.0.exe` from the GitHub Releases page.
-2. Install `DualView-Android-Companion.apk` on the phone if you want the companion setup guide.
-3. On Android, enable Developer options and USB debugging.
-4. Connect the phone to Windows using a USB data cable, unlock it, and approve the USB debugging prompt.
-5. Open DualView and select the detected phone, then choose **Start phone screen**.
-6. The phone video opens in a separate window on the left side of the desktop. Use the phone itself to open and control the video app; the mirrored window displays the phone's current screen.
+1. Download the Windows installer from the GitHub Releases page.
+2. Install and open DualView.
+3. For physical-phone mirroring, enable Developer options → USB debugging on the phone, connect by USB, approve the debugging prompt, then use **Phone screen** → **Start phone screen**.
+4. For an independent virtual phone, install Android Studio with Android Emulator, create an AVD in Tools → Device Manager, then open **Android on PC** in DualView and press **Start Android on PC**.
 
-## PC internet requirement
+## Physical phone / PC internet
 
-The Windows installer includes ADB and scrcpy. Once the installer has been downloaded to the PC (for example, transferred using your phone), the PC does not need internet to mirror the phone over USB. The phone can continue using its own mobile data for online video.
+The Windows installer includes ADB and scrcpy. Once the installer has been downloaded to the PC (for example, transferred using your phone), the PC does not need internet to mirror the phone over USB. The phone can continue using its own mobile data for online video in the mirrored phone screen.
 
 ## Development
 
@@ -41,8 +48,10 @@ gradle --no-daemon :android:assembleDebug
 
 ## Scope and limitations
 
-This milestone mirrors the phone's live display in a separate Windows window; it does not yet create a second independent instance of a phone app or bypass app-level DRM / secure-screen capture restrictions. Some streaming services may show a black screen or block capture. The optional independent Android runtime on Windows and a dedicated video-only transport remain future work.
+Android on PC uses the official Android Emulator installed on the Windows computer; DualView does not bundle a multi-gigabyte Android system image or Android Studio. AVD creation and first system-image installation are one-time setup steps. Emulator performance depends on PC hardware and hardware virtualization being enabled in BIOS/UEFI. Some streaming apps may restrict playback or screen capture in virtual devices.
+
+The separate **Video bridge** feature remains the next milestone.
 
 ## Repository
 
-The source code and automated build workflows are maintained in this repository. GitHub Actions builds the Windows installer and Android APK. Versioned Git tags generate a GitHub Release containing both installers.
+The source code and automated build workflows are maintained in this repository. GitHub Actions builds the Windows installer and Android companion APK. Versioned Git tags generate a GitHub Release containing both installers.
