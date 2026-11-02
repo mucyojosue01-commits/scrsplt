@@ -14,17 +14,36 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-      - run: npm install
-      - run: npm test
-      - run: npm run build
-      - run: npm run dist:win -- --publish never
+          node-version: 22
+      - name: Install dependencies
+        run: npm install
+      - name: Download portable scrcpy and ADB
+        shell: pwsh
+        run: |
+          $release = Invoke-RestMethod -Headers @{ "User-Agent" = "DualView-CI" } -Uri "https://api.github.com/repos/Genymobile/scrcpy/releases/latest"
+          $asset = $release.assets | Where-Object { $_.name -match '^scrcpy-win64-v.*\.zip$' } | Select-Object -First 1
+          if (-not $asset) { throw "Could not find the official Windows x64 scrcpy release asset." }
+          New-Item -ItemType Directory -Force -Path "vendor/scrcpy" | Out-Null
+          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "scrcpy.zip"
+          Expand-Archive -Path "scrcpy.zip" -DestinationPath "vendor/unpacked" -Force
+          $folder = Get-ChildItem "vendor/unpacked" -Directory | Select-Object -First 1
+          Copy-Item "$($folder.FullName)/*" "vendor/scrcpy/" -Recurse -Force
+          if (-not (Test-Path "vendor/scrcpy/scrcpy.exe") -or -not (Test-Path "vendor/scrcpy/adb.exe")) {
+            throw "Official scrcpy archive did not contain scrcpy.exe and adb.exe."
+          }
+      - name: Test
+        run: npm test
+      - name: Build Windows installer
+        run: npm run dist:win
       - uses: actions/upload-artifact@v4
         with:
           name: DualView-Windows-Installer
           path: release/*.exe
           if-no-files-found: error
+          retention-days: 30
