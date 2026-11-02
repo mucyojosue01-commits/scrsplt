@@ -13,5 +13,13 @@ export function parseAdbDevices(output: string): AdbDevice[] {
 }
 
 export function buildScrcpyArgs(deviceId: string): string[] {
-  return ["-s", deviceId, "--window-title", "DualView • Android", "--stay-awake"];
+  return [
+    "-s", deviceId,
+    "--window-title", "DualView • Phone Video",
+    "--window-x", "0",
+    "--window-y", "0",
+    "--stay-awake",
+    "--max-size", "1920",
+    "--video-bit-rate", "8M"
+  ];
 }
