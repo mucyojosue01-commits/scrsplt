@@ -4,6 +4,12 @@ export interface AndroidDevice {
   state: DeviceState;
   model?: string;
 }
+export interface EmulatorStatus {
+  available: boolean;
+  avds: string[];
+  running: string[];
+  sdkPath: string | null;
+}
 export interface DualViewStatus {
   adbAvailable: boolean;
   scrcpyAvailable: boolean;
@@ -15,6 +21,9 @@ export interface DesktopBridge {
   refreshDevices: () => Promise<DualViewStatus>;
   startMirror: (deviceId: string) => Promise<{ ok: boolean; message: string }>;
   stopMirror: () => Promise<{ ok: boolean; message: string }>;
+  getEmulatorStatus: () => Promise<EmulatorStatus>;
+  startEmulator: (avdName: string) => Promise<{ ok: boolean; message: string }>;
+  stopEmulator: () => Promise<{ ok: boolean; message: string }>;
   openExternal: (url: string) => Promise<void>;
 }
 declare global {
