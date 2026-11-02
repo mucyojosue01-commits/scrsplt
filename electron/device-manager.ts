@@ -1,6 +1,6 @@
 import { execFile, spawn, ChildProcess } from "node:child_process";
 import { promisify } from "node:util";
-import { buildScrcpyArgs, parseAdbDevices } from "../src/shared/adb";
+import { buildScrcpyArgs, parseAdbDevices } from "./adb-parser";
 const execFileAsync = promisify(execFile);
 export { buildScrcpyArgs, parseAdbDevices };
 export interface DeviceRecord { id: string; state: "device" | "unauthorized" | "offline" | "unknown"; model?: string }
