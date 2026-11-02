@@ -1,8 +1,10 @@
 import { app, BrowserWindow, ipcMain, shell } from "electron";
 import path from "node:path";
 import { DeviceManager } from "./device-manager";
+import { AndroidEmulatorManager } from "./android-emulator";
 
 const manager = new DeviceManager();
+const emulator = new AndroidEmulatorManager();
 const isDev = !app.isPackaged;
 
 function createWindow() {
@@ -27,8 +29,17 @@ app.whenReady().then(() => {
   ipcMain.handle("dualview:refresh", () => manager.getStatus());
   ipcMain.handle("dualview:start-mirror", (_event, deviceId: string) => manager.startMirror(deviceId));
   ipcMain.handle("dualview:stop-mirror", () => manager.stopMirror());
+  ipcMain.handle("dualview:emulator-status", () => emulator.getStatus());
+  ipcMain.handle("dualview:emulator-start", (_event, avdName: string) => emulator.start(avdName));
+  ipcMain.handle("dualview:emulator-stop", () => emulator.stop());
   ipcMain.handle("dualview:open-external", async (_event, url: string) => {
-    if (url === "https://developer.android.com/tools/adb" || url === "https://github.com/Genymobile/scrcpy") await shell.openExternal(url);
+    const allowed = [
+      "https://developer.android.com/tools/adb",
+      "https://github.com/Genymobile/scrcpy",
+      "https://developer.android.com/studio",
+      "https://developer.android.com/studio/run/managing-avds",
+    ];
+    if (allowed.includes(url)) await shell.openExternal(url);
   });
   createWindow();
   app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
