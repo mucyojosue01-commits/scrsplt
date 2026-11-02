@@ -16,7 +16,12 @@ describe("parseAdbDevices", () => {
 });
 
 describe("buildScrcpyArgs", () => {
-  it("targets only the selected device and uses the DualView title", () => {
-    expect(buildScrcpyArgs("device-123")).toEqual(["-s", "device-123", "--window-title", "DualView • Android", "--stay-awake"]);
+  it("targets the selected phone and opens its video window on the left", () => {
+    expect(buildScrcpyArgs("device-123")).toEqual([
+      "-s", "device-123",
+      "--window-title", "DualView • Phone Video",
+      "--window-x", "0", "--window-y", "0",
+      "--stay-awake", "--max-size", "1920", "--video-bit-rate", "8M"
+    ]);
   });
 });
