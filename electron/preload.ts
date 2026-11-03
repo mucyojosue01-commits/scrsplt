@@ -1,3 +1,4 @@
+import type { ScrcpySettings } from "../src/shared/types";
 import { contextBridge, ipcRenderer } from "electron";
 contextBridge.exposeInMainWorld("dualview", {
   openVideoBridge: (url: string) => ipcRenderer.invoke("dualview:open-video-bridge", url),
@@ -6,9 +7,9 @@ contextBridge.exposeInMainWorld("dualview", {
   refreshDevices: () => ipcRenderer.invoke("dualview:refresh"),
   getResourceStats: (id?: string) => ipcRenderer.invoke("dualview:resources", id),
   stopBackgroundApp: (id: string, packageName: string) => ipcRenderer.invoke("dualview:stop-background-app", id, packageName),
-  startMirror: (id: string, orientation: "auto" | "portrait" | "landscape") => ipcRenderer.invoke("dualview:start-mirror", id, orientation),
+  startMirror: (id: string, settings: ScrcpySettings) => ipcRenderer.invoke("dualview:start-mirror", id, settings),
   stopMirror: () => ipcRenderer.invoke("dualview:stop-mirror"),
-  startSecondaryDisplay: (id: string) => ipcRenderer.invoke("dualview:start-secondary", id),
+  startSecondaryDisplay: (id: string, settings: ScrcpySettings) => ipcRenderer.invoke("dualview:start-secondary", id, settings),
   enableMultiWindow: (id: string) => ipcRenderer.invoke("dualview:enable-multi-window", id),
   sendFiles: (id: string) => ipcRenderer.invoke("dualview:send-files", id),
   stopSecondaryDisplay: () => ipcRenderer.invoke("dualview:stop-secondary"),
