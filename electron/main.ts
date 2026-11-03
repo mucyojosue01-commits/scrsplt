@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, screen } from "electron";
 import path from "node:path";
 import { DeviceManager } from "./device-manager";
 const manager = new DeviceManager();
@@ -10,10 +10,20 @@ function createWindow() {
 app.whenReady().then(() => {
   ipcMain.handle("dualview:status", () => manager.getStatus());
   ipcMain.handle("dualview:refresh", () => manager.getStatus());
+  ipcMain.handle("dualview:resources", (_event, id?: string) => manager.getResourceStats(id));
+  ipcMain.handle("dualview:stop-background-app", (_event, id: string, packageName: string) => manager.stopBackgroundApp(id, packageName));
   ipcMain.handle("dualview:start-mirror", (_event, id: string, orientation: "auto" | "portrait" | "landscape") => manager.startMirror(id, orientation));
-  ipcMain.handle("dualview:installed-apps", (_event, id: string) => manager.getInstalledApps(id));
   ipcMain.handle("dualview:stop-mirror", () => manager.stopMirror());
-  ipcMain.handle("dualview:start-secondary", (_event, id: string, pkg: string) => manager.startSecondaryDisplay(id, pkg));
+  ipcMain.handle("dualview:start-secondary", (_event, id: string) => {
+    const { width, height } = screen.getPrimaryDisplay().size;
+    return manager.startSecondaryDisplay(id, width, height);
+  });
+  ipcMain.handle("dualview:enable-multi-window", (_event, id: string) => manager.enableMultiWindow(id));
+  ipcMain.handle("dualview:send-files", async (_event, id: string) => {
+    const picked = await dialog.showOpenDialog({ title: "Choose files to transfer to Android", properties: ["openFile", "multiSelections"] });
+    if (picked.canceled || !picked.filePaths.length) return { ok: false, message: "File transfer cancelled." };
+    return manager.sendFiles(id, picked.filePaths);
+  });
   ipcMain.handle("dualview:stop-secondary", () => manager.stopSecondaryDisplay());
   createWindow();
   app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
