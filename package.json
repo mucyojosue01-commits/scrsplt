@@ -1,8 +1,8 @@
 {
   "name": "dualview",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "private": true,
-  "description": "Windows and Android companion for a USB-connected second-screen video experience",
+  "description": "Lightweight Windows companion for two independent Android displays from one physical phone",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on tcp:5173 && npm run build:electron && electron .\"",
@@ -38,10 +38,33 @@
   "build": {
     "appId": "com.dualview.desktop",
     "productName": "DualView",
-    "directories": { "output": "release" },
-    "files": ["dist/**/*", "dist-electron/**/*", "package.json"],
-    "extraResources": [{ "from": "vendor/scrcpy", "to": "scrcpy", "filter": ["**/*"] }],
-    "win": { "target": ["nsis"], "artifactName": "DualView-Setup-${version}.${ext}" },
-    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true }
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "vendor/scrcpy",
+        "to": "scrcpy",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "artifactName": "DualView-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    }
   }
 }

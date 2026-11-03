@@ -1,9 +1,9 @@
 import { contextBridge, ipcRenderer } from "electron";
-
 contextBridge.exposeInMainWorld("dualview", {
   getStatus: () => ipcRenderer.invoke("dualview:status"),
   refreshDevices: () => ipcRenderer.invoke("dualview:refresh"),
-  startMirror: (deviceId: string) => ipcRenderer.invoke("dualview:start-mirror", deviceId),
+  startMirror: (id: string) => ipcRenderer.invoke("dualview:start-mirror", id),
   stopMirror: () => ipcRenderer.invoke("dualview:stop-mirror"),
-  openExternal: (url: string) => ipcRenderer.invoke("dualview:open-external", url),
+  startSecondaryDisplay: (id: string, pkg: string) => ipcRenderer.invoke("dualview:start-secondary", id, pkg),
+  stopSecondaryDisplay: () => ipcRenderer.invoke("dualview:stop-secondary"),
 });

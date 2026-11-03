@@ -1,82 +1,47 @@
 import { useCallback, useEffect, useState } from "react";
-import { Cable, CircleHelp, Monitor, RefreshCw, Smartphone, Wifi, Play, Square, ShieldCheck, ArrowUpRight, Video, AppWindow } from "lucide-react";
+import { Cable, Monitor, RefreshCw, Smartphone, Play, Square, ShieldCheck, AppWindow, Wifi } from "lucide-react";
 import type { DualViewStatus } from "../shared/types";
-
-const empty: DualViewStatus = { adbAvailable: false, scrcpyAvailable: false, devices: [], mirrorRunning: false };
-
+const empty: DualViewStatus = { adbAvailable:false, scrcpyAvailable:false, devices:[], mirrorRunning:false, secondaryRunning:false };
 export default function App() {
-  const [status, setStatus] = useState(empty);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState("Connect your Android phone with a USB data cable to begin.");
-  const [selected, setSelected] = useState("");
-
-  const refresh = useCallback(async () => {
-    if (!window.dualview) { setLoading(false); return; }
-    setLoading(true);
-    try {
-      const next = await window.dualview.refreshDevices();
-      setStatus(next);
-      setSelected((current) => next.devices.some((d) => d.id === current) ? current : next.devices.find((d) => d.state === "device")?.id ?? next.devices[0]?.id ?? "");
-      if (!next.adbAvailable) setNotice("Android Platform Tools (ADB) are not installed or are not on PATH.");
-      else if (!next.scrcpyAvailable) setNotice("ADB is ready. Install scrcpy to enable phone mirroring.");
-      else if (!next.devices.length) setNotice("ADB and scrcpy are ready. Connect your phone and enable USB debugging.");
-      else setNotice("Phone detected. Select it and start mirroring.");
-    } catch { setNotice("Could not read device status. Restart DualView and try again."); }
-    finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { void refresh(); const timer = window.setInterval(() => void refresh(), 5000); return () => window.clearInterval(timer); }, [refresh]);
-
-  async function start() {
-    if (!selected || !window.dualview) return;
-    setBusy(true);
-    const result = await window.dualview.startMirror(selected);
-    setNotice(result.message);
-    setBusy(false);
-    await refresh();
-  }
-  async function stop() {
-    if (!window.dualview) return;
-    setBusy(true);
-    const result = await window.dualview.stopMirror();
-    setNotice(result.message);
-    setBusy(false);
-    await refresh();
-  }
-
-  const readyDevice = status.devices.find((d) => d.id === selected && d.state === "device");
+  const [status,setStatus]=useState(empty), [selected,setSelected]=useState(""), [pkg,setPkg]=useState("com.android.settings");
+  const [tab,setTab]=useState<"phone"|"second">("phone"), [busy,setBusy]=useState(false), [notice,setNotice]=useState("Connect your Android phone with a USB data cable.");
+  const refresh=useCallback(async()=>{ if(!window.dualview)return; try { const next=await window.dualview.refreshDevices(); setStatus(next); setSelected(v=>next.devices.some(d=>d.id===v)?v:next.devices.find(d=>d.state==="device")?.id??""); if(!next.adbAvailable||!next.scrcpyAvailable)setNotice("DualView's bundled Android tools are unavailable."); else if(!next.devices.length)setNotice("Connect your phone and approve USB debugging."); else setNotice("Phone connected. Choose a workspace."); } catch {setNotice("Could not read phone status.");}},[]);
+  useEffect(()=>{void refresh();const timer=window.setInterval(()=>void refresh(),5000);return()=>window.clearInterval(timer)},[refresh]);
+  const device=status.devices.find(d=>d.id===selected&&d.state==="device");
+  async function action(fn:()=>Promise<{ok:boolean;message:string}>){setBusy(true);try{const r=await fn();setNotice(r.message)}finally{setBusy(false);await refresh()}}
   return <main className="app-shell">
-    <aside className="sidebar">
-      <div className="brand"><div className="brand-mark"><span /><span /></div><div><strong>dualview</strong><small>PHONE × PC</small></div></div>
+    <aside className="sidebar"><div className="brand"><div className="brand-mark"><span/><span/></div><div><strong>dualview</strong><small>PHONE × PC</small></div></div>
       <div className="side-label">WORKSPACE</div>
-      <button className="nav-item active"><Monitor size={17} /> Phone screen <span className="nav-dot" /></button>
-      <button className="nav-item" disabled><Video size={17} /> Video bridge <em>SOON</em></button>
-      <button className="nav-item" disabled><AppWindow size={17} /> Android on PC <em>SOON</em></button>
-      <div className="sidebar-bottom"><ShieldCheck size={16} /><span>Local connection<br /><b>No cloud relay</b></span></div>
+      <button className={tab==="phone"?"nav-item active":"nav-item"} onClick={()=>setTab("phone")}><Monitor size={17}/> Phone screen {tab==="phone"&&<span className="nav-dot"/>}</button>
+      <button className={tab==="second"?"nav-item active":"nav-item"} onClick={()=>setTab("second")}><AppWindow size={17}/> Second Android screen {tab==="second"&&<span className="nav-dot"/>}</button>
+      <button className="nav-item" disabled><Wifi size={17}/> Video bridge <em>NEXT</em></button>
+      <div className="sidebar-bottom"><ShieldCheck size={16}/><span>Direct local connection<br/><b>No cloud relay · No emulator</b></span></div>
     </aside>
     <section className="main-area">
-      <header className="topbar"><div><span className="eyebrow">DEVICE WORKSPACE</span><h1>Your phone, on a bigger screen.</h1></div><div className="top-actions"><span className="connection-pill"><i /> USB CONNECTION</span><button className="icon-button" onClick={() => void refresh()} aria-label="Refresh devices"><RefreshCw size={17} /></button></div></header>
+      <header className="topbar"><div><span className="eyebrow">{tab==="phone"?"PHONE DISPLAY":"ANDROID VIRTUAL DISPLAY"}</span><h1>{tab==="phone"?"Your phone, on a bigger screen.":"Run a different app on your PC."}</h1></div><div className="top-actions"><span className="connection-pill"><i/> USB CONNECTION</span><button className="icon-button" onClick={()=>void refresh()} aria-label="Refresh"><RefreshCw size={17}/></button></div></header>
       <div className="content">
-        <section className="hero-card">
-          <div className="hero-copy"><span className="eyebrow light">DUALVIEW · USB MODE</span><h2>One phone.<br /><span>Two screens.</span></h2><p>Use your Android phone from Windows with a direct USB connection. Your PC does not need internet for local mirroring.</p><div className="hero-tags"><span><Cable size={14} /> USB first</span><span><ShieldCheck size={14} /> Private by design</span></div></div>
-          <div className="device-art"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><div className="phone-frame"><div className="phone-camera" /><div className="phone-screen"><div className="screen-top">DUALVIEW <b>●</b></div><div className="screen-time">09:41</div><div className="screen-caption">Connected<br />to Windows</div><div className="screen-bars"><i /><i /><i /></div></div></div><div className="pc-frame"><div className="pc-screen"><div className="pc-line" /><div className="pc-line short" /><div className="pc-wave" /></div><div className="pc-stand" /></div><div className="link-glow" /></div>
-        </section>
-        <div className="section-heading"><div><span className="eyebrow">CONNECTION</span><h3>Connect your Android</h3></div><span className="live-status"><i /> LIVE DEVICE CHECK</span></div>
+        <section className="hero-card"><div className="hero-copy"><span className="eyebrow light">DUALVIEW · TWO DISPLAYS</span><h2>One phone.<br/><span>Two independent screens.</span></h2><p>Keep Music or another app on your phone while opening Settings or a different app in a separate Windows window.</p><div className="hero-tags"><span><Cable size={14}/> USB connection</span><span><ShieldCheck size={14}/> Local & private</span></div></div><div className="device-art"><div className="orbit orbit-one"/><div className="orbit orbit-two"/><div className="phone-frame"><div className="phone-camera"/><div className="phone-screen"><div className="screen-top">PHONE <b>●</b></div><div className="screen-time">♫</div><div className="screen-caption">Music app<br/>stays here</div><div className="screen-bars"><i/><i/><i/></div></div></div><div className="pc-frame"><div className="pc-screen"><div className="pc-line"/><div className="pc-line short"/><div className="pc-wave"/></div><div className="pc-stand"/></div><div className="link-glow"/></div></section>
+        <div className="section-heading"><div><span className="eyebrow">CONNECTION</span><h3>Connect your Android phone</h3></div><span className="live-status"><i/> LIVE DEVICE CHECK</span></div>
         <section className="connection-grid">
-          <article className="panel device-panel"><div className="panel-head"><div className="panel-icon"><Smartphone size={19} /></div><div><h4>Android device</h4><p>USB debugging connection</p></div><button className="icon-button small" onClick={() => void refresh()} aria-label="Refresh"><RefreshCw size={15} /></button></div>
-            {status.devices.length ? <div className="device-list">{status.devices.map((device) => <button key={device.id} className={selected === device.id ? "device-row selected" : "device-row"} onClick={() => setSelected(device.id)}><span className="device-glyph"><Smartphone size={20} /></span><span className="device-meta"><b>{device.model || "Android phone"}</b><small>{device.id} · {device.state}</small></span><span className={device.state === "device" ? "state-ready" : "state-wait"}>{device.state === "device" ? "READY" : device.state.toUpperCase()}</span></button>)}</div> : <div className="empty-device"><div className="empty-icon"><Smartphone size={23} /></div><b>No phone detected yet</b><span>Connect your phone using a USB data cable.</span></div>}
-            <div className="device-actions">{status.mirrorRunning ? <button className="primary-button stop" onClick={() => void stop()} disabled={busy}><Square size={16} /> Stop mirroring</button> : <button className="primary-button" onClick={() => void start()} disabled={!readyDevice || !status.scrcpyAvailable || busy}><Play size={16} fill="currentColor" /> {busy ? "Starting…" : "Start phone screen"}</button>}<span className="helper-text">{loading ? "Checking devices…" : notice}</span></div>
+          <article className="panel device-panel"><div className="panel-head"><div className="panel-icon"><Smartphone size={19}/></div><div><h4>Connected phone</h4><p>USB debugging · Android 10 or newer for second display</p></div><button className="icon-button small" onClick={()=>void refresh()} aria-label="Refresh"><RefreshCw size={15}/></button></div>
+            {status.devices.length?<div className="device-list">{status.devices.map(d=><button key={d.id} className={selected===d.id?"device-row selected":"device-row"} onClick={()=>setSelected(d.id)}><span className="device-glyph"><Smartphone size={20}/></span><span className="device-meta"><b>{d.model||"Android phone"}</b><small>{d.id} · {d.state}</small></span><span className={d.state==="device"?"state-ready":"state-wait"}>{d.state.toUpperCase()}</span></button>)}</div>:<div className="empty-device"><div className="empty-icon"><Smartphone size={23}/></div><b>No phone detected</b><span>Connect a USB data cable and approve the debugging prompt.</span></div>}
+            <div className="device-actions">{status.mirrorRunning?<button className="primary-button stop" disabled={busy} onClick={()=>void action(()=>window.dualview!.stopMirror())}><Square size={16}/> Close phone window</button>:<button className="primary-button" disabled={!device||busy} onClick={()=>void action(()=>window.dualview!.startMirror(selected))}><Play size={16} fill="currentColor"/> Open phone screen</button>}</div>
           </article>
-          <article className="panel setup-panel"><div className="panel-head"><div className="panel-icon muted"><CircleHelp size={19} /></div><div><h4>One-time setup</h4><p>Prepare Windows and your phone</p></div></div>
-            <div className="setup-step"><span className={status.adbAvailable ? "step-check done" : "step-check"}>{status.adbAvailable ? "✓" : "1"}</span><div><b>Install Android Platform Tools</b><small>Provides ADB for USB communication.</small><button className="text-link" onClick={() => void window.dualview?.openExternal("https://developer.android.com/tools/adb")}>Get ADB <ArrowUpRight size={13} /></button></div></div>
-            <div className="setup-step"><span className={status.scrcpyAvailable ? "step-check done" : "step-check"}>{status.scrcpyAvailable ? "✓" : "2"}</span><div><b>Install scrcpy</b><small>Streams and controls the phone screen.</small><button className="text-link" onClick={() => void window.dualview?.openExternal("https://github.com/Genymobile/scrcpy")}>Get scrcpy <ArrowUpRight size={13} /></button></div></div>
-            <div className="setup-step"><span className="step-check">3</span><div><b>Enable USB debugging</b><small>Settings → About phone → Software information → tap Build number 7 times, then Developer options → USB debugging.</small></div></div>
+          <article className="panel setup-panel"><div className="panel-head"><div className="panel-icon muted"><ShieldCheck size={19}/></div><div><h4>One-time setup</h4><p>No Android Studio or virtual phone image</p></div></div>
+            <div className="setup-step"><span className={status.adbAvailable?"step-check done":"step-check"}>{status.adbAvailable?"✓":"1"}</span><div><b>DualView tools</b><small>ADB and scrcpy are bundled with the Windows app.</small></div></div>
+            <div className="setup-step"><span className="step-check">2</span><div><b>Enable USB debugging</b><small>Developer options → USB debugging. Unlock your phone and approve this PC.</small></div></div>
+            <div className="setup-step"><span className="step-check">3</span><div><b>Use Android 10 or newer</b><small>Android's virtual-display support is required for the second screen.</small></div></div>
           </article>
         </section>
-        <section className="bottom-note"><Wifi size={17} /><p><b>USB keeps the connection local.</b> Mirroring sends the phone display to your PC over the cable; it does not turn on a hotspot or use PC internet.</p></section>
+        <section className="second-display-panel panel"><div className="panel-head"><div className="panel-icon"><AppWindow size={19}/></div><div><h4>Second Android screen on PC</h4><p>Launch another installed Android app in its own Windows window.</p></div></div>
+          <div className="app-launch-row"><label htmlFor="package">Android app package name</label><input id="package" value={pkg} onChange={e=>setPkg(e.target.value)} placeholder="com.android.settings"/><button className="primary-button" disabled={!device||busy||status.secondaryRunning} onClick={()=>void action(()=>window.dualview!.startSecondaryDisplay(selected,pkg))}><Play size={15} fill="currentColor"/> Open on PC</button></div>
+          <div className="quick-apps"><span>QUICK LAUNCH</span><button onClick={()=>setPkg("com.android.settings")}>Settings</button><button onClick={()=>setPkg("com.google.android.apps.youtube.music")}>YouTube Music</button><button onClick={()=>setPkg("com.spotify.music")}>Spotify</button></div>
+          {status.secondaryRunning&&<button className="primary-button stop" disabled={busy} onClick={()=>void action(()=>window.dualview!.stopSecondaryDisplay())}><Square size={15}/> Close second screen</button>}
+          <p className="helper-text">{notice}</p>
+        </section>
+        <section className="bottom-note"><Wifi size={17}/><p><b>How the two screens work:</b> the phone keeps its current app; DualView asks Android to open the selected app on a separate virtual display and shows that display in a second PC window. No Android emulator or system-image download is used. USB mirroring works offline.</p></section>
       </div>
-      <footer><span>DUALVIEW DESKTOP · v0.1.0</span><span>BUILT FOR ANDROID + WINDOWS</span></footer>
+      <footer><span>DUALVIEW DESKTOP · v0.4.0</span><span>ANDROID + WINDOWS · LOCAL CONNECTION</span></footer>
     </section>
   </main>;
 }
