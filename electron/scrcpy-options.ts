@@ -49,5 +49,5 @@ export function buildScrcpySessionArgs(
   return args;
 }
 export function parseScrcpyHelpFlags(helpText: string): Set<string> {
-  return new Set([...helpText.matchAll(/(?:^|\\s)(--[a-z][a-z0-9-]*)/g)].map(match => match[1]));
+  return new Set([...helpText.matchAll(/(?:^|\s)(--[a-z][a-z0-9-]*)/g)].map(match => match[1]));
 }
