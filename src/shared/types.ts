@@ -13,6 +13,7 @@ export interface DesktopBridge {
   startMirror: (id: string, orientation: "auto" | "portrait" | "landscape") => Promise<{ ok: boolean; message: string }>;
   stopMirror: () => Promise<{ ok: boolean; message: string }>;
   startSecondaryDisplay: (id: string) => Promise<{ ok: boolean; message: string }>;
+  enableMultiWindow: (id: string) => Promise<{ ok: boolean; message: string }>;
   sendFiles: (id: string) => Promise<{ ok: boolean; message: string }>;
   stopSecondaryDisplay: () => Promise<{ ok: boolean; message: string }>;
 }
