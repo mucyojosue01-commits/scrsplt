@@ -9,6 +9,8 @@ import rikka.shizuku.Shizuku
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Starts a Shizuku UserService for diagnostics. Shizuku 13.1.5 intentionally
@@ -43,15 +45,15 @@ object HostBridge {
         }
 
         val latch = CountDownLatch(1)
-        @Volatile var remote: IHostShell? = null
-        @Volatile var disconnected = false
+        val remote = AtomicReference<IHostShell?>(null)
+        val disconnected = AtomicBoolean(false)
         val connection = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-                remote = IHostShell.Stub.asInterface(service)
+                remote.set(IHostShell.Stub.asInterface(service))
                 latch.countDown()
             }
             override fun onServiceDisconnected(name: ComponentName?) {
-                disconnected = true
+                disconnected.set(true)
                 latch.countDown()
             }
         }
@@ -64,10 +66,10 @@ object HostBridge {
             if (!latch.await(12, TimeUnit.SECONDS)) {
                 Shizuku.unbindUserService(args, connection, true)
                 "SHIZUKU USER SERVICE: TIMEOUT\nThe privileged diagnostic service did not connect within 12 seconds."
-            } else if (disconnected || remote == null) {
+            } else if (disconnected.get() || remote.get() == null) {
                 "SHIZUKU USER SERVICE: DISCONNECTED\nCheck that Shizuku is running and DualView permission is granted."
             } else {
-                val result = remote!!.runDiagnostics()
+                val result = remote.get()!!.runDiagnostics()
                 Shizuku.unbindUserService(args, connection, true)
                 result
             }
