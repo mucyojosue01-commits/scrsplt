@@ -49,3 +49,4 @@
 .resource-card .resource-foot b{color:#4d6252;font-weight:700}
 .resource-card .resource-foot span{max-width:72%;text-align:right;line-height:1.45}
 .resource-card .resource-title span{white-space:nowrap}
+\n.video-bridge-panel{min-height:0;margin:18px 0 14px}.video-bridge-copy{margin:17px 0 12px}.video-bridge-copy b{font-size:11px;color:#365b40}.video-bridge-copy p{font-size:10px;line-height:1.6;color:#7d8b80;max-width:780px}.video-bridge-controls{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.video-bridge-controls input{height:36px;min-width:260px;flex:1;border:1px solid #dce5dc;border-radius:7px;padding:0 11px;font:11px "DM Sans",sans-serif;color:#26362b}.video-bridge-foot{display:flex;gap:20px;flex-wrap:wrap;margin-top:15px;color:#7b8c7e;font-size:9px}.video-bridge-foot span{background:#f3f7f2;border:1px solid #e5ece4;padding:7px 10px;border-radius:7px}
