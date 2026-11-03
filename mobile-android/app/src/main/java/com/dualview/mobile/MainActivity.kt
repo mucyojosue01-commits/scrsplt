@@ -66,15 +66,59 @@ class MainActivity : Activity() {
         content.removeAllViews()
         back()
         title("Phone A · Host", 28)
-        body("This phone would keep running the selected apps. First, verify whether Android exposes the required independent virtual-device backend.")
+        body("Phone A runs the apps and keeps their private data. DualView first checks whether this Android build exposes the shell capabilities needed for a scrcpy-style host service.")
         space(16)
-        card("DEVICE CHECK", "Android ${Build.VERSION.SDK_INT}", if (Build.VERSION.SDK_INT >= 34) "Android version is new enough to investigate the AOSP virtual-device path. This alone does not grant the required privileged host service." else "The AOSP reference host path requires Android 14+ userdebug/eng with privileged system-app installation. This device does not meet that baseline.") {}
-        space(12)
-        card("NETWORK", "Local Wi-Fi address: ${localIp()}", "Connect both phones to the same trusted Wi-Fi network. Avoid public Wi-Fi for private screen sessions.") {}
-        space(12)
-        card("HOST STATUS", "Independent display: not enabled", "This build will not claim success or silently switch to mirroring. Stock Android app permissions cannot grant the privileged VirtualDeviceManager host capability.") {}
-        space(18)
-        smallButton("View technical requirements") { requirements() }
+        card("STEP 1 · PREPARE HOST", "Enable Wireless debugging", "On Phone A: Settings → About phone → tap Build number 7 times. Open Developer options → Wireless debugging. Keep this phone and Phone B on the same trusted Wi-Fi network.") {}
+        space(10)
+        card("STEP 2 · START SHELL BRIDGE", "Install and start Shizuku", "Install the official Shizuku app on Phone A. Start it using Wireless debugging pairing. This is an explicit owner-controlled ADB bridge; DualView cannot silently enable it.") {}
+        space(10)
+        card("STEP 3 · AUTHORIZE DUALVIEW", "Grant shell access", "When Shizuku is running, approve the permission request. You can revoke it from Shizuku at any time.") {
+            try {
+                if (!HostBridge.isRunning()) {
+                    showDiagnostic("Shizuku is not running yet. Start it on this phone, then return and try again.")
+                } else if (HostBridge.hasShellPermission()) {
+                    showDiagnostic(HostBridge.diagnostics())
+                } else {
+                    HostBridge.requestPermission()
+                    showDiagnostic("Permission request sent. Approve the Shizuku prompt, then tap Run host diagnostics.")
+                }
+            } catch (e: Exception) {
+                showDiagnostic("Bridge error: ${e.message ?: "unknown"}")
+            }
+        }
+        space(10)
+        card("STEP 4 · VERIFY ANDROID CAPABILITIES", "Run host diagnostics", "Checks the shell identity, Android build type and available display commands. It does not change system settings or launch apps.") {
+            showDiagnostic(HostBridge.diagnostics())
+        }
+        space(10)
+        card("HOST LIMITATION", "Independent display is not active yet", "Shizuku shell access is a stepping stone, not a guarantee. The next stage must verify whether this exact firmware permits virtual-display creation, app launch on that display, video capture and input injection. We will not claim success until those operations work.") {}
+        space(16)
+        label("LIVE DIAGNOSTIC")
+        diagnosticView = TextView(this).apply {
+            text = "No host diagnostic has been run."
+            textSize = 12f
+            setTextColor(ink)
+            setPadding(dp(14), dp(14), dp(14), dp(14))
+            setBackgroundColor(Color.WHITE)
+        }
+        content.addView(diagnosticView)
+    }
+
+    private var diagnosticView: TextView? = null
+
+    private fun showDiagnostic(message: String) {
+        val view = diagnosticView
+        if (view != null) view.text = message else {
+            val box = TextView(this).apply {
+                text = message
+                textSize = 12f
+                setTextColor(ink)
+                setPadding(dp(14), dp(14), dp(14), dp(14))
+                setBackgroundColor(Color.WHITE)
+            }
+            content.addView(box)
+            diagnosticView = box
+        }
     }
 
     private fun client() {
