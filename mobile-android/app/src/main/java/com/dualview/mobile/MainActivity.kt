@@ -31,8 +31,7 @@ class MainActivity : Activity() {
         }
         root.addView(text("DUALVIEW  /  MOBILE", 12f, green, true))
         root.addView(gap(28))
-        root.addView(text("One phone.
-A second display.", 31f, ink, true))
+        root.addView(text("One phone.\nA second display.", 31f, ink, true))
         root.addView(gap(10))
         root.addView(text("Run apps from Phone A on Phone B as a separate Android display. Your apps and private data stay on Phone A.", 15f, muted, false))
         root.addView(gap(24))
@@ -58,8 +57,7 @@ A second display.", 31f, ink, true))
 
     private fun showCompatibility() {
         val sdk = Build.VERSION.SDK_INT
-        val supportedClient = sdk >= 33
-        status.text = if (supportedClient) {
+        status.text = if (sdk >= 33) {
             "This phone meets the Android 13+ client baseline. Host capability is checked separately and depends on privileged Android virtual-device support."
         } else {
             "This phone is below the Android 13 client baseline for the reference virtual-device streaming stack."
