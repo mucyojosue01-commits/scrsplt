@@ -30,14 +30,14 @@ function parseKb(text: string, key: string): number | null {
 export class DeviceManager {
   private mirrorProcess: ChildProcess | null = null;
   private secondaryProcess: ChildProcess | null = null;
-  private scrcpyFlags = new Set<string>();
+  private scrcpyFlags = new Set<string>();\n  private scrcpyFlagsLoaded = false;\n  private dexCache = new Map<string, { detected: boolean; model: string; detail: string }>();
   private async readScrcpyFlags(): Promise<Set<string>> {
     try { const { stdout, stderr } = await execFileAsync(command("scrcpy.exe"), ["--help"], { windowsHide: true, timeout: 7000, maxBuffer: 2 * 1024 * 1024, env: toolEnv() }); return parseScrcpyHelpFlags(stdout + "\n" + stderr); } catch { return new Set<string>(); }
   }
   async getStatus(): Promise<ToolStatus & { mirrorRunning: boolean; secondaryRunning: boolean }> {
     let adbAvailable = false, scrcpyAvailable = false, devices: DeviceRecord[] = [];
     try { const { stdout } = await execFileAsync(command("adb.exe"), ["devices", "-l"], { windowsHide: true, timeout: 7000, env: toolEnv() }); adbAvailable = true; devices = parseAdbDevices(stdout); } catch {}
-    try { await execFileAsync(command("scrcpy.exe"), ["--version"], { windowsHide: true, timeout: 7000, env: toolEnv() }); scrcpyAvailable = true; this.scrcpyFlags = await this.readScrcpyFlags(); } catch {}
+    try { await execFileAsync(command("scrcpy.exe"), ["--version"], { windowsHide: true, timeout: 7000, env: toolEnv() }); scrcpyAvailable = true; if (!this.scrcpyFlagsLoaded) { this.scrcpyFlags = await this.readScrcpyFlags(); this.scrcpyFlagsLoaded = true; } } catch {}
     let samsungDex = { detected: false, model: "", detail: "Connect a Samsung phone to check DeX support." };
     const ready = devices.find(d => d.state === "device");
     if (ready) { try { const [{ stdout: model }, { stdout: packages }] = await Promise.all([execFileAsync(command("adb.exe"), ["-s", ready.id, "shell", "getprop", "ro.product.model"], { windowsHide: true, timeout: 6000, env: toolEnv() }), execFileAsync(command("adb.exe"), ["-s", ready.id, "shell", "pm", "list", "packages"], { windowsHide: true, timeout: 8000, env: toolEnv() })]); const samsung = /samsung/i.test(model); const hasDex = /com\.sec\.android\.app\.(?:dexonpc|desktopmode)|com\.samsung\.android\.desktopmode/i.test(packages); samsungDex = { detected: samsung && hasDex, model: model.trim(), detail: !samsung ? "This is not a Samsung device." : hasDex ? "Samsung DeX components detected. Availability still depends on the model and external-display support." : "Samsung phone detected, but no DeX components were found. This model may not support Samsung DeX." }; } catch { samsungDex = { detected: false, model: ready.model ?? "", detail: "Could not verify Samsung DeX support on this phone." }; } }
