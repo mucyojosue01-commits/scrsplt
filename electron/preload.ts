@@ -1,4 +1,4 @@
-import type { ScrcpySettings } from "../src/shared/types";
+import type { ScrcpySettings } from "./scrcpy-options";
 import { contextBridge, ipcRenderer } from "electron";
 contextBridge.exposeInMainWorld("dualview", {
   openVideoBridge: (url: string) => ipcRenderer.invoke("dualview:open-video-bridge", url),
