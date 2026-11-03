@@ -17,6 +17,7 @@ app.whenReady().then(() => {
     const { width, height } = screen.getPrimaryDisplay().size;
     return manager.startSecondaryDisplay(id, width, height);
   });
+  ipcMain.handle("dualview:enable-multi-window", (_event, id: string) => manager.enableMultiWindow(id));
   ipcMain.handle("dualview:send-files", async (_event, id: string) => {
     const picked = await dialog.showOpenDialog({ title: "Choose files to transfer to Android", properties: ["openFile", "multiSelections"] });
     if (picked.canceled || !picked.filePaths.length) return { ok: false, message: "File transfer cancelled." };
