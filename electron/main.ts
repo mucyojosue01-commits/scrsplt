@@ -1,4 +1,5 @@
-import { app, BrowserWindow, dialog, ipcMain, screen } from "electron";
+import type { ScrcpySettings } from "../src/shared/types";
+import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import path from "node:path";
 import { DeviceManager } from "./device-manager";
 const manager = new DeviceManager();
@@ -25,12 +26,9 @@ app.whenReady().then(() => {
   ipcMain.handle("dualview:refresh", () => manager.getStatus());
   ipcMain.handle("dualview:resources", (_event, id?: string) => manager.getResourceStats(id));
   ipcMain.handle("dualview:stop-background-app", (_event, id: string, packageName: string) => manager.stopBackgroundApp(id, packageName));
-  ipcMain.handle("dualview:start-mirror", (_event, id: string, orientation: "auto" | "portrait" | "landscape") => manager.startMirror(id, orientation));
+  ipcMain.handle("dualview:start-mirror", (_event, id: string, settings: ScrcpySettings) => manager.startMirror(id, settings));
   ipcMain.handle("dualview:stop-mirror", () => manager.stopMirror());
-  ipcMain.handle("dualview:start-secondary", (_event, id: string) => {
-    const { width, height } = screen.getPrimaryDisplay().size;
-    return manager.startSecondaryDisplay(id, width, height);
-  });
+  ipcMain.handle("dualview:start-secondary", (_event, id: string, settings: ScrcpySettings) => manager.startSecondaryDisplay(id, settings));
   ipcMain.handle("dualview:enable-multi-window", (_event, id: string) => manager.enableMultiWindow(id));
   ipcMain.handle("dualview:send-files", async (_event, id: string) => {
     const picked = await dialog.showOpenDialog({ title: "Choose files to transfer to Android", properties: ["openFile", "multiSelections"] });
