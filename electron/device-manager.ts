@@ -7,59 +7,64 @@ const execFileAsync = promisify(execFile);
 export { buildScrcpyArgs, parseAdbDevices };
 export interface DeviceRecord { id: string; state: "device" | "unauthorized" | "offline" | "unknown"; model?: string }
 export interface ToolStatus { adbAvailable: boolean; scrcpyAvailable: boolean; devices: DeviceRecord[] }
-
 function toolPath(name: string): string {
-  const bundled = app.isPackaged
-    ? path.join(process.resourcesPath, "scrcpy", name)
-    : path.join(process.cwd(), "vendor", "scrcpy", name);
-  return bundled;
+  return app.isPackaged ? path.join(process.resourcesPath, "scrcpy", name) : path.join(process.cwd(), "vendor", "scrcpy", name);
 }
 function command(name: string): string {
   const bundled = toolPath(name);
   try { require("node:fs").accessSync(bundled); return bundled; } catch { return name.replace(/\.exe$/, ""); }
 }
-function toolEnv() {
-  const dir = path.dirname(toolPath("scrcpy.exe"));
-  return { ...process.env, PATH: `${dir};${process.env.PATH ?? ""}` };
-}
-
+function toolEnv() { const dir = path.dirname(toolPath("scrcpy.exe")); return { ...process.env, PATH: `${dir};${process.env.PATH ?? ""}` }; }
 export class DeviceManager {
   private mirrorProcess: ChildProcess | null = null;
-  async getStatus(): Promise<ToolStatus & { mirrorRunning: boolean }> {
-    let adbAvailable = false, scrcpyAvailable = false;
-    let devices: DeviceRecord[] = [];
-    try {
-      const { stdout } = await execFileAsync(command("adb.exe"), ["devices", "-l"], { windowsHide: true, timeout: 7000, env: toolEnv() });
-      adbAvailable = true;
-      devices = parseAdbDevices(stdout);
-    } catch { /* The bundled tools are checked first; PATH is a development fallback. */ }
-    try {
-      await execFileAsync(command("scrcpy.exe"), ["--version"], { windowsHide: true, timeout: 7000, env: toolEnv() });
-      scrcpyAvailable = true;
-    } catch { /* Missing tools are reported in the UI. */ }
-    return { adbAvailable, scrcpyAvailable, devices, mirrorRunning: Boolean(this.mirrorProcess && !this.mirrorProcess.killed) };
+  private secondaryProcess: ChildProcess | null = null;
+  async getStatus(): Promise<ToolStatus & { mirrorRunning: boolean; secondaryRunning: boolean }> {
+    let adbAvailable = false, scrcpyAvailable = false, devices: DeviceRecord[] = [];
+    try { const { stdout } = await execFileAsync(command("adb.exe"), ["devices", "-l"], { windowsHide: true, timeout: 7000, env: toolEnv() }); adbAvailable = true; devices = parseAdbDevices(stdout); } catch {}
+    try { await execFileAsync(command("scrcpy.exe"), ["--version"], { windowsHide: true, timeout: 7000, env: toolEnv() }); scrcpyAvailable = true; } catch {}
+    return { adbAvailable, scrcpyAvailable, devices, mirrorRunning: Boolean(this.mirrorProcess && !this.mirrorProcess.killed), secondaryRunning: Boolean(this.secondaryProcess && !this.secondaryProcess.killed) };
   }
-  async startMirror(deviceId: string): Promise<{ ok: boolean; message: string }> {
-    if (this.mirrorProcess && !this.mirrorProcess.killed) return { ok: false, message: "A mirroring session is already running." };
+  private async validate(deviceId: string): Promise<string | null> {
     const status = await this.getStatus();
-    if (!status.adbAvailable) return { ok: false, message: "The bundled ADB runtime could not start. Reinstall DualView." };
-    if (!status.scrcpyAvailable) return { ok: false, message: "The bundled screen-mirroring runtime could not start. Reinstall DualView." };
+    if (!status.adbAvailable || !status.scrcpyAvailable) return "DualView's bundled Android tools are unavailable. Reinstall DualView.";
     const device = status.devices.find((item) => item.id === deviceId);
-    if (!device) return { ok: false, message: "That phone is no longer connected. Refresh the device list." };
-    if (device.state === "unauthorized") return { ok: false, message: "Unlock your phone and approve the USB debugging permission prompt." };
-    if (device.state !== "device") return { ok: false, message: "The phone is not ready. Check the USB cable and reconnect it." };
+    if (!device) return "That phone is no longer connected. Refresh the device list.";
+    if (device.state === "unauthorized") return "Unlock your phone and approve the USB debugging permission prompt.";
+    if (device.state !== "device") return "The phone is not ready. Check the connection and reconnect it.";
+    try {
+      const { stdout } = await execFileAsync(command("adb.exe"), ["-s", deviceId, "shell", "getprop", "ro.build.version.sdk"], { windowsHide: true, timeout: 7000, env: toolEnv() });
+      if (Number(stdout.trim()) < 29) return "A separate Android display requires Android 10 (API 29) or newer. Your phone can still use normal mirroring.";
+    } catch { return "Could not check Android version. Reconnect the phone and try again."; }
+    return null;
+  }
+  private launch(args: string[], assign: (child: ChildProcess | null) => void, label: string): Promise<{ ok: boolean; message: string }> {
     return new Promise((resolve) => {
-      const child = spawn(command("scrcpy.exe"), buildScrcpyArgs(deviceId), { windowsHide: false, stdio: "ignore", env: toolEnv() });
-      this.mirrorProcess = child;
-      let settled = false;
-      child.once("spawn", () => { settled = true; resolve({ ok: true, message: "Phone video window started. Keep DualView open while using it." }); });
-      child.once("error", (error) => { this.mirrorProcess = null; if (!settled) resolve({ ok: false, message: `Could not start screen mirroring: ${error.message}` }); });
-      child.once("exit", () => { this.mirrorProcess = null; });
+      const child = spawn(command("scrcpy.exe"), args, { windowsHide: false, stdio: "ignore", env: toolEnv() });
+      assign(child); let settled = false;
+      child.once("spawn", () => { settled = true; resolve({ ok: true, message: label }); });
+      child.once("error", (error) => { assign(null); if (!settled) resolve({ ok: false, message: `Could not start scrcpy: ${error.message}` }); });
+      child.once("exit", () => assign(null));
     });
   }
-  async stopMirror(): Promise<{ ok: boolean; message: string }> {
-    if (!this.mirrorProcess || this.mirrorProcess.killed) return { ok: true, message: "No mirroring session is running." };
-    this.mirrorProcess.kill(); this.mirrorProcess = null;
-    return { ok: true, message: "Mirroring process stopped." };
+  async startMirror(deviceId: string) {
+    if (this.mirrorProcess && !this.mirrorProcess.killed) return { ok: false, message: "The phone screen is already open." };
+    const error = await this.validate(deviceId); if (error) return { ok: false, message: error };
+    return this.launch(["--serial", deviceId], (p) => { this.mirrorProcess = p; }, "Phone screen opened in its own Windows window.");
   }
+  async stopMirror() {
+    if (!this.mirrorProcess || this.mirrorProcess.killed) return { ok: true, message: "Phone screen is not open." };
+    this.mirrorProcess.kill(); this.mirrorProcess = null; return { ok: true, message: "Phone screen closed." };
+  }
+  async startSecondaryDisplay(deviceId: string, packageName: string) {
+    if (this.secondaryProcess && !this.secondaryProcess.killed) return { ok: false, message: "The second Android screen is already running." };
+    const error = await this.validate(deviceId); if (error) return { ok: false, message: error };
+    const pkg = String(packageName ?? "").trim();
+    if (!/^[a-zA-Z0-9_]+(\.[a-zA-Z0-9_]+)+$/.test(pkg)) return { ok: false, message: "Enter a valid Android app package name, for example com.android.settings." };
+    return this.launch(["--serial", deviceId, "--new-display=1024x768/160", `--start-app=${pkg}`, "--window-title=DualView Second Android Screen"], (p) => { this.secondaryProcess = p; }, `Opening ${pkg} on a separate Android display. Your phone's current screen stays independent.`);
+  }
+  async stopSecondaryDisplay() {
+    if (!this.secondaryProcess || this.secondaryProcess.killed) return { ok: true, message: "Second Android screen is not open." };
+    this.secondaryProcess.kill(); this.secondaryProcess = null; return { ok: true, message: "Second Android screen closed." };
+  }
+  async stopAll() { await this.stopMirror(); await this.stopSecondaryDisplay(); }
 }
