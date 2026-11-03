@@ -1,10 +1,12 @@
 export type DeviceState = "device" | "unauthorized" | "offline" | "unknown";
 export interface AndroidDevice { id: string; state: DeviceState; model?: string }
+export interface InstalledAndroidApp { packageName: string; label: string }
 export interface DualViewStatus { adbAvailable: boolean; scrcpyAvailable: boolean; devices: AndroidDevice[]; mirrorRunning: boolean; secondaryRunning: boolean }
 export interface DesktopBridge {
   getStatus: () => Promise<DualViewStatus>;
   refreshDevices: () => Promise<DualViewStatus>;
-  startMirror: (id: string) => Promise<{ ok: boolean; message: string }>;
+  startMirror: (id: string, orientation: "auto" | "portrait" | "landscape") => Promise<{ ok: boolean; message: string }>;
+  getInstalledApps: (id: string) => Promise<InstalledAndroidApp[]>;
   stopMirror: () => Promise<{ ok: boolean; message: string }>;
   startSecondaryDisplay: (id: string, pkg: string) => Promise<{ ok: boolean; message: string }>;
   stopSecondaryDisplay: () => Promise<{ ok: boolean; message: string }>;
