@@ -8,7 +8,7 @@ DualView is a lightweight Windows desktop companion for using one physical Andro
 - Create an Android virtual display on the same physical phone and launch a different installed app there. Example: keep a music app on the phone while opening Android Settings on the PC.
 - USB-first local connection; no cloud relay and no internet required for USB mirroring.
 - Bundled ADB and scrcpy runtime; no Android Studio, Android Emulator, AVD, or multi-gigabyte system image.
-- Smart Settings UI for audio forwarding, keep-awake, orientation, resolution, FPS, bitrate, fullscreen, screen-off, touch indicators and window behavior.
+- Smart Settings UI for audio forwarding, keep-awake, orientation, stream and virtual-display resolution, FPS, bitrate, fullscreen, screen-off, touch indicators and window behavior.
 - Safe scrcpy CLI argument generation with validation and capability detection from the bundled scrcpy help output.
 - Samsung DeX compatibility detection; unsupported models remain on the DualView virtual-display engine.
 
