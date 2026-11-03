@@ -8,7 +8,8 @@ const execFileAsync = promisify(execFile);
 export { buildScrcpyArgs, parseAdbDevices };
 export interface DeviceRecord { id: string; state: "device" | "unauthorized" | "offline" | "unknown"; model?: string }
 export interface ToolStatus { adbAvailable: boolean; scrcpyAvailable: boolean; devices: DeviceRecord[] }
-export interface MemoryProcess { packageName: string; label: string; memoryKb: number; isForeground: boolean; safeToStop: boolean }\nexport interface ResourceStats {\n  memoryProcesses: MemoryProcess[];
+export interface MemoryProcess { packageName: string; label: string; memoryKb: number; isForeground: boolean; safeToStop: boolean }
+export interface ResourceStats {\n  memoryProcesses: MemoryProcess[];
   pc: { totalMemory: number; freeMemory: number; appMemory: number; cpuCount: number; cpuPercent: number | null; disks: Array<{ name: string; total: number; free: number }> };
   phone: { totalMemory: number | null; availableMemory: number | null; thermal: string | null; storageTotal: number | null; storageFree: number | null; foregroundApp: string | null; foregroundAppMemory: string | null }; workloads: Array<{ name: string; device: "PC" | "PHONE"; detail: string; active: boolean }>; sampledAt: number;
 }
