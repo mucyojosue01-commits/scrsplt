@@ -4,11 +4,8 @@ import android.content.pm.PackageManager
 import rikka.shizuku.Shizuku
 
 /**
- * Optional, user-authorized Shizuku capability check.
- *
- * This intentionally does not claim that shell access creates an Android
- * virtual display. A dedicated Shizuku UserService backend is the next step
- * for running the host-side display controller.
+ * Read-only host capability probe through the owner's Shizuku authorization.
+ * No display is created and no app is launched by diagnostics.
  */
 object HostBridge {
     private const val REQUEST_CODE = 4107
@@ -19,17 +16,15 @@ object HostBridge {
         isRunning() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
 
     fun requestPermission() {
-        if (isRunning() && !hasShellPermission()) {
-            Shizuku.requestPermission(REQUEST_CODE)
-        }
+        if (isRunning() && !hasShellPermission()) Shizuku.requestPermission(REQUEST_CODE)
     }
 
     fun diagnostics(): String {
         if (!isRunning()) {
-            return "Shizuku is not running. Install and start Shizuku on Phone A using Android Wireless debugging, then return here."
+            return "SHIZUKU: NOT RUNNING\nStart Shizuku on Phone A using Android Wireless debugging."
         }
         if (!hasShellPermission()) {
-            return "Shizuku is running, but DualView has not been granted access. Tap Grant shell access and approve the prompt."
+            return "SHIZUKU: PERMISSION REQUIRED\nApprove DualView's shell access request, then run diagnostics again."
         }
 
         return try {
@@ -40,9 +35,25 @@ object HostBridge {
                 2000 -> "ADB shell"
                 else -> "UID $uid"
             }
-            "SHIZUKU CONNECTION: READY\nIdentity: $identity\nShizuku API version: $version\n\nThis confirms the authorized bridge only. It does not yet confirm that this Android build permits creating an independent virtual display. The next host test must verify display creation, app launch on that display, frame capture, and input routing."
+            val process = Shizuku.newProcess(
+                arrayOf(
+                    "sh", "-c",
+                    "echo '=== BUILD ==='; getprop ro.build.version.release; getprop ro.build.version.sdk; getprop ro.build.type; " +
+                    "echo '=== DEVICE ==='; getprop ro.product.manufacturer; getprop ro.product.model; " +
+                    "echo '=== DISPLAY SHELL COMMANDS ==='; cmd display help 2>&1; " +
+                    "echo '=== DISPLAY SERVICE SNAPSHOT ==='; dumpsys display 2>&1 | head -n 100; " +
+                    "echo '=== ACTIVITY DISPLAY OPTIONS ==='; cmd activity help 2>&1 | head -n 80; " +
+                    "echo '=== WIFI AWARE FEATURES ==='; pm list features | grep -i -E 'wifi.aware|wifi.direct' || true"
+                ),
+                null,
+                null
+            )
+            val output = process.inputStream.bufferedReader().use { it.readText() }.take(9000)
+            val error = process.errorStream.bufferedReader().use { it.readText() }.take(1500)
+            val exit = process.waitFor()
+            "BRIDGE: READY ($identity)\nShizuku API: $version\nProbe exit: $exit\n\n$output\n$error\n\nIMPORTANT: This is a read-only capability inventory. A positive build or shell probe is not proof of independent-display support. That requires a real device test: create a separate display, launch a different app on it, confirm the host screen stays unchanged, then verify capture and input routing."
         } catch (e: Exception) {
-            "Shizuku check failed: ${e.javaClass.simpleName}: ${e.message ?: "unknown error"}"
+            "Host diagnostics failed: ${e.javaClass.simpleName}: ${e.message ?: "unknown error"}"
         }
     }
 }
