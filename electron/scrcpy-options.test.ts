@@ -20,6 +20,10 @@ describe("scrcpy session settings", () => {
     expect(args).not.toContain("--stay-awake");
     expect(args).toContain("--max-fps=30");
   });
+  it("uses the selected virtual display dimensions", () => {
+    const args = buildScrcpySessionArgs("device-1", "desktop", { ...DEFAULT_SCRCPY_SETTINGS, displayResolution: "1600x900" });
+    expect(args).toContain("--new-display=1600x900/160");
+  });
   it("rejects invalid values rather than passing arbitrary CLI input", () => {
     expect(validateScrcpySettings({ ...DEFAULT_SCRCPY_SETTINGS, maxFps: 999 })).toMatch(/frame rate/);
     expect(() => buildScrcpySessionArgs("device-1", "mirror", { ...DEFAULT_SCRCPY_SETTINGS, videoBitRate: "1M; del *" })).toThrow();
