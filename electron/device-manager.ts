@@ -3,11 +3,12 @@ import { execFile, spawn, ChildProcess } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { buildScrcpyArgs, parseAdbDevices } from "./adb-parser";
+import { parseAdbDevices } from "./adb-parser";
+import { buildScrcpySessionArgs, DEFAULT_SCRCPY_SETTINGS, parseScrcpyHelpFlags, ScrcpySettings } from "./scrcpy-options";
 const execFileAsync = promisify(execFile);
 export { buildScrcpyArgs, parseAdbDevices };
 export interface DeviceRecord { id: string; state: "device" | "unauthorized" | "offline" | "unknown"; model?: string }
-export interface ToolStatus { adbAvailable: boolean; scrcpyAvailable: boolean; devices: DeviceRecord[] }
+export interface ToolStatus { adbAvailable: boolean; scrcpyAvailable: boolean; devices: DeviceRecord[]; scrcpyFlags: string[]; samsungDex: { detected: boolean; model: string; detail: string } }
 export interface MemoryProcess { packageName: string; label: string; memoryKb: number; isForeground: boolean; safeToStop: boolean }
 export interface ResourceStats {
   memoryProcesses: MemoryProcess[];
@@ -29,11 +30,18 @@ function parseKb(text: string, key: string): number | null {
 export class DeviceManager {
   private mirrorProcess: ChildProcess | null = null;
   private secondaryProcess: ChildProcess | null = null;
+  private scrcpyFlags = new Set<string>();
+  private async readScrcpyFlags(): Promise<Set<string>> {
+    try { const { stdout, stderr } = await execFileAsync(command("scrcpy.exe"), ["--help"], { windowsHide: true, timeout: 7000, maxBuffer: 2 * 1024 * 1024, env: toolEnv() }); return parseScrcpyHelpFlags(stdout + "\n" + stderr); } catch { return new Set<string>(); }
+  }
   async getStatus(): Promise<ToolStatus & { mirrorRunning: boolean; secondaryRunning: boolean }> {
     let adbAvailable = false, scrcpyAvailable = false, devices: DeviceRecord[] = [];
     try { const { stdout } = await execFileAsync(command("adb.exe"), ["devices", "-l"], { windowsHide: true, timeout: 7000, env: toolEnv() }); adbAvailable = true; devices = parseAdbDevices(stdout); } catch {}
-    try { await execFileAsync(command("scrcpy.exe"), ["--version"], { windowsHide: true, timeout: 7000, env: toolEnv() }); scrcpyAvailable = true; } catch {}
-    return { adbAvailable, scrcpyAvailable, devices, mirrorRunning: Boolean(this.mirrorProcess && !this.mirrorProcess.killed), secondaryRunning: Boolean(this.secondaryProcess && !this.secondaryProcess.killed) };
+    try { await execFileAsync(command("scrcpy.exe"), ["--version"], { windowsHide: true, timeout: 7000, env: toolEnv() }); scrcpyAvailable = true; this.scrcpyFlags = await this.readScrcpyFlags(); } catch {}
+    let samsungDex = { detected: false, model: "", detail: "Connect a Samsung phone to check DeX support." };
+    const ready = devices.find(d => d.state === "device");
+    if (ready) { try { const [{ stdout: model }, { stdout: packages }] = await Promise.all([execFileAsync(command("adb.exe"), ["-s", ready.id, "shell", "getprop", "ro.product.model"], { windowsHide: true, timeout: 6000, env: toolEnv() }), execFileAsync(command("adb.exe"), ["-s", ready.id, "shell", "pm", "list", "packages"], { windowsHide: true, timeout: 8000, env: toolEnv() })]); const samsung = /samsung/i.test(model); const hasDex = /com\.sec\.android\.app\.(?:dexonpc|desktopmode)|com\.samsung\.android\.desktopmode/i.test(packages); samsungDex = { detected: samsung && hasDex, model: model.trim(), detail: !samsung ? "This is not a Samsung device." : hasDex ? "Samsung DeX components detected. Availability still depends on the model and external-display support." : "Samsung phone detected, but no DeX components were found. This model may not support Samsung DeX." }; } catch { samsungDex = { detected: false, model: ready.model ?? "", detail: "Could not verify Samsung DeX support on this phone." }; } }
+    return { adbAvailable, scrcpyAvailable, devices, scrcpyFlags: [...this.scrcpyFlags], samsungDex, mirrorRunning: Boolean(this.mirrorProcess && !this.mirrorProcess.killed), secondaryRunning: Boolean(this.secondaryProcess && !this.secondaryProcess.killed) };
   }
   private previousCpu: { idle: number; total: number } | null = null;
   async getResourceStats(deviceId?: string): Promise<ResourceStats> {
@@ -119,28 +127,21 @@ export class DeviceManager {
       child.once("exit", () => assign(null));
     });
   }
-  async startMirror(deviceId: string, orientation: "auto" | "portrait" | "landscape" = "auto") {
+  async startMirror(deviceId: string, settings: ScrcpySettings = DEFAULT_SCRCPY_SETTINGS) {
     if (this.mirrorProcess && !this.mirrorProcess.killed) return { ok: false, message: "The phone screen is already open." };
-    const error = await this.validate(deviceId); if (error) return { ok: false, message: error };
-    const args = ["--serial", deviceId, "--stay-awake", "--max-fps=30", "--video-bit-rate=4M", "--no-audio"];
-    if (orientation === "landscape") args.push("--orientation=90");
-    if (orientation === "portrait") args.push("--orientation=0");
-    return this.launch(args, p => { this.mirrorProcess = p; }, "Phone screen opened with balanced streaming settings.");
+    const error = await this.validate(deviceId, false); if (error) return { ok: false, message: error };
+    try { const args = buildScrcpySessionArgs(deviceId, "mirror", settings, this.scrcpyFlags); return this.launch(args, p => { this.mirrorProcess = p; }, settings.audio ? "Phone screen opened. Supported phone audio is being forwarded to Windows." : "Phone screen opened. Phone audio stays on the phone."); }
+    catch (e) { return { ok: false, message: e instanceof Error ? e.message : "Invalid scrcpy settings." }; }
   }
   async stopMirror() {
     if (!this.mirrorProcess || this.mirrorProcess.killed) return { ok: true, message: "Phone screen is not open." };
     this.mirrorProcess.kill(); this.mirrorProcess = null; return { ok: true, message: "Phone screen closed." };
   }
-  async startSecondaryDisplay(deviceId: string, width: number, height: number) {
+  async startSecondaryDisplay(deviceId: string, settings: ScrcpySettings = DEFAULT_SCRCPY_SETTINGS) {
     if (this.secondaryProcess && !this.secondaryProcess.killed) return { ok: false, message: "The DualView desktop is already running." };
     const error = await this.validate(deviceId); if (error) return { ok: false, message: error };
-    const w = Math.max(800, Math.min(3840, Math.round(width)));
-    const h = Math.max(600, Math.min(2160, Math.round(height)));
-    // Start a conservative virtual display first. Do not force-launch the HOME package:
-    // several OEM launchers crash or report ANR when their package is started directly on a secondary display.
-    const args = ["--serial", deviceId, "--new-display=1280x720/160", "--window-title=DualView Android Desktop", "--video-bit-rate=3M", "--max-fps=30", "--stay-awake", "--no-audio"];
-    void width; void height;
-    return this.launch(args, p => { this.secondaryProcess = p; }, "Android desktop starting at a stable 1280×720 resolution. Open apps from the Android launcher.");
+    try { const args = buildScrcpySessionArgs(deviceId, "desktop", settings, this.scrcpyFlags); return this.launch(args, p => { this.secondaryProcess = p; }, "Android desktop starting at 1280×720. Open apps from the Android launcher."); }
+    catch (e) { return { ok: false, message: e instanceof Error ? e.message : "Invalid scrcpy settings." }; }
   }
   async stopSecondaryDisplay() {
     if (!this.secondaryProcess || this.secondaryProcess.killed) return { ok: true, message: "DualView desktop is not open." };
