@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { AppWindow, Cable, FileUp, Monitor, Play, RefreshCw, ShieldCheck, Smartphone, Square, Wifi, Cpu, HardDrive } from "lucide-react";
-import type { DualViewStatus, ResourceStats } from "../shared/types";\nimport MemoryManager from "./MemoryManager";
+import type { DualViewStatus, ResourceStats } from "../shared/types";
+import MemoryManager from "./MemoryManager";
 const empty: DualViewStatus = { adbAvailable:false, scrcpyAvailable:false, devices:[], mirrorRunning:false, secondaryRunning:false };
 const blankStats: ResourceStats = { memoryProcesses:[], pc:{totalMemory:0,freeMemory:0,appMemory:0,cpuCount:0,cpuPercent:null,disks:[]}, phone:{totalMemory:null,availableMemory:null,thermal:null,storageTotal:null,storageFree:null,foregroundApp:null,foregroundAppMemory:null}, workloads:[], sampledAt:0 };
 const gb=(n:number|null)=>n===null?"—":(n/1024/1024/1024).toFixed(1)+" GB";
