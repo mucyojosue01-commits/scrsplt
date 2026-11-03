@@ -109,6 +109,17 @@ export class DeviceManager {
     if (!this.secondaryProcess || this.secondaryProcess.killed) return { ok: true, message: "DualView desktop is not open." };
     this.secondaryProcess.kill(); this.secondaryProcess = null; return { ok: true, message: "DualView desktop closed." };
   }
+  async enableMultiWindow(deviceId: string) {
+    const error = await this.validate(deviceId);
+    if (error) return { ok: false, message: error };
+    try {
+      await execFileAsync(command("adb.exe"), ["-s", deviceId, "shell", "settings", "put", "global", "enable_freeform_support", "1"], { windowsHide: true, timeout: 7000, env: toolEnv() });
+      await execFileAsync(command("adb.exe"), ["-s", deviceId, "shell", "settings", "put", "global", "force_resizable_activities", "1"], { windowsHide: true, timeout: 7000, env: toolEnv() });
+      return { ok: true, message: "Android multi-window preferences enabled where supported. Reopen the Android desktop; actual split-screen availability depends on your phone's Android build and launcher." };
+    } catch (e) {
+      return { ok: false, message: e instanceof Error ? e.message : "This Android version does not allow DualView to change multi-window settings." };
+    }
+  }
   async sendFiles(deviceId: string, files: string[]) {
     const error = await this.validate(deviceId); if (error) return { ok: false, message: error };
     try {
