@@ -30,10 +30,10 @@ export class DeviceManager {
     const { stdout } = await execFileAsync(command("adb.exe"), ["-s", deviceId, "shell", "cmd", "package", "query-activities", "--brief", "-a", "android.intent.action.MAIN", "-c", "android.intent.category.LAUNCHER"], { windowsHide: true, timeout: 15000, env: toolEnv() });
     const packages = new Set<string>();
     for (const line of stdout.split(/\r?\n/)) {
-      const match = line.trim().match(/(?:ComponentInfo\{)?([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)+)\\//);
+      const match = line.trim().match(/([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)+)\//);
       if (match) packages.add(match[1]);
     }
-    return [...packages].map(packageName => ({ packageName, label: packageName.split(".").pop()!.replace(/[_-]+/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/\b\\w/g, c => c.toUpperCase()) })).sort((a,b)=>a.label.localeCompare(b.label));
+    return [...packages].map(packageName => ({ packageName, label: packageName.split(".").pop()!.replace(/[_-]+/g, " ").replace(/\b[a-z]/g, c => c.toUpperCase()) })).sort((a,b)=>a.label.localeCompare(b.label));
   }
   private async validate(deviceId: string): Promise<string | null> {
     const status = await this.getStatus();
