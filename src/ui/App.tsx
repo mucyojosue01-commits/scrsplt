@@ -6,7 +6,7 @@ import SmartSettings from "./SmartSettings";
 import type { ScrcpySettings } from "../shared/types";
 const empty: DualViewStatus = { adbAvailable:false, scrcpyAvailable:false, devices:[], mirrorRunning:false, secondaryRunning:false, scrcpyFlags:[], samsungDex:{detected:false,model:"",detail:"Connect a Samsung phone to check DeX support."} };
 const blankStats: ResourceStats = { memoryProcesses:[], pc:{totalMemory:0,freeMemory:0,appMemory:0,cpuCount:0,cpuPercent:null,disks:[]}, phone:{totalMemory:null,availableMemory:null,thermal:null,storageTotal:null,storageFree:null,foregroundApp:null,foregroundAppMemory:null}, workloads:[], sampledAt:0 };
-const DEFAULT_SCRCPY_SETTINGS: ScrcpySettings = {audio:false,stayAwake:true,orientation:"auto",maxSize:1920,maxFps:30,videoBitRate:"4M",fullscreen:false,turnScreenOff:false,showTouches:false,alwaysOnTop:false,windowBorderless:false};
+const DEFAULT_SCRCPY_SETTINGS: ScrcpySettings = {audio:false,stayAwake:true,orientation:"auto",maxSize:1920,displayResolution:"1280x720",maxFps:30,videoBitRate:"4M",fullscreen:false,turnScreenOff:false,showTouches:false,alwaysOnTop:false,windowBorderless:false};
 const gb=(n:number|null)=>n===null?"—":(n/1024/1024/1024).toFixed(1)+" GB";
 export default function App() {
   const [status,setStatus]=useState(empty), [selected,setSelected]=useState("");
