@@ -3,8 +3,9 @@ import { execFile, spawn, ChildProcess } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { parseAdbDevices } from "./adb-parser";
-import { buildScrcpySessionArgs, DEFAULT_SCRCPY_SETTINGS, parseScrcpyHelpFlags, ScrcpySettings } from "./scrcpy-options";
+import { buildScrcpyArgs, parseAdbDevices } from "./adb-parser";
+import { buildScrcpySessionArgs, DEFAULT_SCRCPY_SETTINGS, parseScrcpyHelpFlags } from "./scrcpy-options";
+import type { ScrcpySettings } from "./scrcpy-options";
 const execFileAsync = promisify(execFile);
 export { buildScrcpyArgs, parseAdbDevices };
 export interface DeviceRecord { id: string; state: "device" | "unauthorized" | "offline" | "unknown"; model?: string }
