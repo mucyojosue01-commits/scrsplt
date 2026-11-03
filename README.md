@@ -1,29 +1,23 @@
 # DualView
 
-DualView is a lightweight Windows desktop companion for using one physical Android phone across two independent displays.
+DualView is a Windows desktop companion for using one physical Android phone across two displays.
 
-## Current features
+## Current workflow
+- Mirror the phone's physical screen in a Windows window.
+- Open an Android virtual display in a second Windows window.
+- The second window opens Android's own home/launcher screen. Open apps using the launcher inside that Android window; DualView no longer asks you to pick an app or uses its unreliable nine-dot app picker.
+- Apps remain installed on the phone and run on the phone's Android system.
+- Direct USB connection; no cloud relay or Android emulator/system image.
 
-- Mirror the phone's primary screen in a separate Windows window.
-- Create an Android virtual display on the same physical phone and launch a different installed app there. Example: keep a music app on the phone while opening Android Settings on the PC.
-- USB-first local connection; no cloud relay and no internet required for USB mirroring.
-- Bundled ADB and scrcpy runtime; no Android Studio, Android Emulator, AVD, or multi-gigabyte system image.
+## PC resource engine
+DualView reports Windows RAM usage and CPU core availability and uses the PC for its own desktop work, window rendering, video transport and supported processing tasks. **Windows RAM is not transparently added to Android RAM:** Android app code and app memory still execute on the phone. Moving arbitrary Android app execution to Windows would require app-specific remote execution or a different Android runtime, which would violate the requirement to keep the phone's Android system.
 
 ## Requirements
-
 - Windows 10/11 x64.
-- Physical Android phone running Android 10 (API 29) or newer for the secondary virtual display.
-- USB data cable and Android Developer Options → USB debugging enabled.
-- Approve the PC's RSA debugging prompt on the unlocked phone.
-
-The virtual-display feature uses scrcpy's --new-display and --start-app support. Android OEMs may restrict virtual displays or app launching; compatibility must be confirmed on the target phone. Some apps may not support secondary displays. The app package field accepts an Android package ID, e.g. com.android.settings.
+- Android 10 (API 29) or newer for the secondary virtual display.
+- USB data cable, USB debugging enabled, and PC authorization accepted on the phone.
+- Some manufacturers or apps may restrict virtual displays. The Android launcher must support secondary displays on the target phone.
 
 ## Build
-
-```bash
-npm install
-npm test
-npm run dist:win
-```
-
-The Windows build workflow downloads the official scrcpy Windows archive and bundles scrcpy + ADB into the installer. The Android companion APK and video bridge are separate future work.
+`npm install`, `npm test`, `npm run dist:win`.
+The CI workflow downloads official scrcpy Windows tools and bundles them into the installer.
