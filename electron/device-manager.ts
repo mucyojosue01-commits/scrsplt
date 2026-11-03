@@ -139,6 +139,8 @@ export class DeviceManager {
     // Start a conservative virtual display first. Do not force-launch the HOME package:
     // several OEM launchers crash or report ANR when their package is started directly on a secondary display.
     const args = ["--serial", deviceId, "--new-display=1280x720/160", "--window-title=DualView Android Desktop", "--video-bit-rate=3M", "--max-fps=30", "--stay-awake", "--no-audio"];
+    void width; void height;
+    return this.launch(args, p => { this.secondaryProcess = p; }, "Android desktop starting at a stable 1280×720 resolution. Open apps from the Android launcher.");
   }
   async stopSecondaryDisplay() {
     if (!this.secondaryProcess || this.secondaryProcess.killed) return { ok: true, message: "DualView desktop is not open." };
