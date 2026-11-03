@@ -29,11 +29,12 @@ export class DeviceManager {
     const error = await this.validate(deviceId); if (error) throw new Error(error);
     const { stdout } = await execFileAsync(command("adb.exe"), ["-s", deviceId, "shell", "cmd", "package", "query-activities", "--brief", "-a", "android.intent.action.MAIN", "-c", "android.intent.category.LAUNCHER"], { windowsHide: true, timeout: 15000, env: toolEnv() });
     const packages = new Set<string>();
-    for (const line of stdout.split(/\\r?\\n/)) {
-      const match = line.trim().match(/(?:ComponentInfo\\{)?([a-zA-Z0-9_]+(?:\\.[a-zA-Z0-9_]+)+)\\//);
+    for (const line of stdout.split(/\r?\n/)) {
+      const match = line.trim().match(/(?:ComponentInfo\{)?([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)+)\\//);
       if (match) packages.add(match[1]);
     }
-    return [...packages].map(packageName => ({ packageName, label: packageName.split(".").pop()!.replace(/[_-]+/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/\\b\\w/g, c => c.toUpperCase()) })).sort((a,b)=>a.label.localeCompare(b.label));\n  }
+    return [...packages].map(packageName => ({ packageName, label: packageName.split(".").pop()!.replace(/[_-]+/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/\b\\w/g, c => c.toUpperCase()) })).sort((a,b)=>a.label.localeCompare(b.label));
+  }
   private async validate(deviceId: string): Promise<string | null> {
     const status = await this.getStatus();
     if (!status.adbAvailable || !status.scrcpyAvailable) return "DualView's bundled Android tools are unavailable. Reinstall DualView.";
