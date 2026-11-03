@@ -4,6 +4,7 @@ export interface ScrcpySettings {
   stayAwake: boolean;
   orientation: ScreenOrientation;
   maxSize: number;
+  displayResolution: "1280x720" | "1600x900" | "1920x1080";
   maxFps: number;
   videoBitRate: string;
   fullscreen: boolean;
@@ -13,13 +14,14 @@ export interface ScrcpySettings {
   windowBorderless: boolean;
 }
 export const DEFAULT_SCRCPY_SETTINGS: ScrcpySettings = {
-  audio: false, stayAwake: true, orientation: "auto", maxSize: 1920,
+  audio: false, stayAwake: true, orientation: "auto", maxSize: 1920, displayResolution: "1280x720",
   maxFps: 30, videoBitRate: "4M", fullscreen: false, turnScreenOff: false,
   showTouches: false, alwaysOnTop: false, windowBorderless: false
 };
 const supportedBitRates = new Set(["2M", "4M", "6M", "8M", "12M", "16M"]);
 export function validateScrcpySettings(input: ScrcpySettings): string | null {
   if (![1024, 1280, 1600, 1920, 2560].includes(input.maxSize)) return "Choose a supported maximum video size.";
+  if (!["1280x720", "1600x900", "1920x1080"].includes(input.displayResolution)) return "Choose a supported Android desktop size.";
   if (![15, 24, 30, 45, 60].includes(input.maxFps)) return "Choose a supported frame rate.";
   if (!supportedBitRates.has(input.videoBitRate)) return "Choose a supported video bitrate.";
   return null;
@@ -45,7 +47,7 @@ export function buildScrcpySessionArgs(
   add("--no-audio", !settings.audio);
   if (settings.orientation === "landscape") args.push("--orientation=90");
   if (settings.orientation === "portrait") args.push("--orientation=0");
-  if (mode === "desktop") args.push("--new-display=1280x720/160", "--window-title=DualView Android Desktop");
+  if (mode === "desktop") args.push(`--new-display=${settings.displayResolution}/160`, "--window-title=DualView Android Desktop");
   return args;
 }
 export function parseScrcpyHelpFlags(helpText: string): Set<string> {
