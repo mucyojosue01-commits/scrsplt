@@ -1,5 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 contextBridge.exposeInMainWorld("dualview", {
+  openVideoBridge: (url: string) => ipcRenderer.invoke("dualview:open-video-bridge", url),
+  closeVideoBridge: () => ipcRenderer.invoke("dualview:close-video-bridge"),
   getStatus: () => ipcRenderer.invoke("dualview:status"),
   refreshDevices: () => ipcRenderer.invoke("dualview:refresh"),
   getResourceStats: (id?: string) => ipcRenderer.invoke("dualview:resources", id),
