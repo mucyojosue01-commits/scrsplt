@@ -1,4 +1,4 @@
-import { AudioLines, BatteryCharging, Monitor, RotateCw, Settings2, Smartphone, Zap } from "lucide-react";
+import { AudioLines, BatteryCharging, Monitor, Settings2, Smartphone, Zap } from "lucide-react";
 import type { ScrcpySettings } from "../shared/types";
 interface Props { settings: ScrcpySettings; onChange: (settings: ScrcpySettings) => void; mode: "phone" | "desktop" }
 const presets: {name:string; icon:typeof Zap; patch:Partial<ScrcpySettings>}[] = [
