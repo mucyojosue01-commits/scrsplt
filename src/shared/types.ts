@@ -8,6 +8,8 @@ export interface ResourceStats { memoryProcesses: MemoryProcess[]; workloads: Wo
 export interface WorkloadInfo { name: string; device: "PC" | "PHONE"; detail: string; active: boolean }
 export interface DualViewStatus { adbAvailable: boolean; scrcpyAvailable: boolean; devices: AndroidDevice[]; mirrorRunning: boolean; secondaryRunning: boolean }
 export interface DesktopBridge {
+  openVideoBridge: (url: string) => Promise<{ ok: boolean; message: string }>;
+  closeVideoBridge: () => Promise<{ ok: boolean; message: string }>;
   getStatus: () => Promise<DualViewStatus>;
   refreshDevices: () => Promise<DualViewStatus>;
   getResourceStats: (id?: string) => Promise<ResourceStats>;
