@@ -89,8 +89,17 @@ export class DeviceManager {
     const error = await this.validate(deviceId); if (error) return { ok: false, message: error };
     const w = Math.max(800, Math.min(3840, Math.round(width)));
     const h = Math.max(600, Math.min(2160, Math.round(height)));
-    const args = ["--serial", deviceId, `--new-display=${w}x${h}/160`, "--fullscreen", "--window-title=DualView Android Desktop", "--video-bit-rate=4M", "--max-fps=30", "--stay-awake"];
-    return this.launch(args, p => { this.secondaryProcess = p; }, "Android desktop opened full-screen. Use Android's app launcher; no app selection is needed in DualView.");
+    let launcherPackage = "";
+    try {
+      const { stdout } = await execFileAsync(command("adb.exe"), ["-s", deviceId, "shell", "cmd", "package", "resolve-activity", "--brief", "-a", "android.intent.action.MAIN", "-c", "android.intent.category.HOME"], { windowsHide: true, timeout: 10000, env: toolEnv() });
+      const component = stdout.split(/\\r?\\n/).map(line => line.trim()).find(line => line.includes("/") && /^[a-zA-Z0-9_.]+\\//.test(line));
+      if (component) launcherPackage = component.split("/")[0];
+    } catch {}
+    const args = ["--serial", deviceId, `--new-display=${w}x${h}`, "--fullscreen", "--window-title=DualView Android Desktop", "--video-bit-rate=4M", "--max-fps=30", "--stay-awake"];
+    if (launcherPackage) args.push(`--start-app=${launcherPackage}`);
+    return this.launch(args, p => { this.secondaryProcess = p; }, launcherPackage
+      ? "Android desktop opened full-screen with your phone's default launcher. Open apps from its app drawer."
+      : "Android desktop opened full-screen. This phone did not expose a default HOME launcher to Android's secondary display.");
   }
   async stopSecondaryDisplay() {
     if (!this.secondaryProcess || this.secondaryProcess.killed) return { ok: true, message: "DualView desktop is not open." };
