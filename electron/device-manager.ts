@@ -92,7 +92,7 @@ export class DeviceManager {
     let launcherPackage = "";
     try {
       const { stdout } = await execFileAsync(command("adb.exe"), ["-s", deviceId, "shell", "cmd", "package", "resolve-activity", "--brief", "-a", "android.intent.action.MAIN", "-c", "android.intent.category.HOME"], { windowsHide: true, timeout: 10000, env: toolEnv() });
-      const component = stdout.split(/\\r?\\n/).map(line => line.trim()).find(line => line.includes("/") && /^[a-zA-Z0-9_.]+\\//.test(line));
+      const component = stdout.split(/\r?\n/).map(line => line.trim()).find(line => line.includes("/") && /^[a-zA-Z0-9_.]+\//.test(line));
       if (component) launcherPackage = component.split("/")[0];
     } catch {}
     const args = ["--serial", deviceId, `--new-display=${w}x${h}`, "--fullscreen", "--window-title=DualView Android Desktop", "--video-bit-rate=4M", "--max-fps=30", "--stay-awake"];
