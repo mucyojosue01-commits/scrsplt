@@ -88,7 +88,7 @@ class MainActivity : Activity() {
         }
         space(10)
         card("STEP 4 · VERIFY ANDROID CAPABILITIES", "Run host diagnostics", "Checks the shell identity, Android build type and available display commands. It does not change system settings or launch apps.") {
-            showDiagnostic(HostBridge.diagnostics())
+            runHostDiagnostics()
         }
         space(10)
         card("HOST LIMITATION", "Independent display is not active yet", "Shizuku shell access is a stepping stone, not a guarantee. The next stage must verify whether this exact firmware permits virtual-display creation, app launch on that display, video capture and input injection. We will not claim success until those operations work.") {}
