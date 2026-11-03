@@ -8,7 +8,7 @@ const execFileAsync = promisify(execFile);
 export { buildScrcpyArgs, parseAdbDevices };
 export interface DeviceRecord { id: string; state: "device" | "unauthorized" | "offline" | "unknown"; model?: string }
 export interface ToolStatus { adbAvailable: boolean; scrcpyAvailable: boolean; devices: DeviceRecord[] }
-export interface ResourceStats {
+export interface MemoryProcess { packageName: string; label: string; memoryKb: number; isForeground: boolean; safeToStop: boolean }\nexport interface ResourceStats {\n  memoryProcesses: MemoryProcess[];
   pc: { totalMemory: number; freeMemory: number; appMemory: number; cpuCount: number; cpuPercent: number | null; disks: Array<{ name: string; total: number; free: number }> };
   phone: { totalMemory: number | null; availableMemory: number | null; thermal: string | null; storageTotal: number | null; storageFree: number | null; foregroundApp: string | null; foregroundAppMemory: string | null }; workloads: Array<{ name: string; device: "PC" | "PHONE"; detail: string; active: boolean }>; sampledAt: number;
 }
@@ -35,7 +35,7 @@ export class DeviceManager {
   }
   private previousCpu: { idle: number; total: number } | null = null;
   async getResourceStats(deviceId?: string): Promise<ResourceStats> {
-    const phone: ResourceStats["phone"] = { totalMemory: null, availableMemory: null, thermal: null, storageTotal: null, storageFree: null, foregroundApp: null, foregroundAppMemory: null };
+    const memoryProcesses = deviceId ? await this.getMemoryProcesses(deviceId).catch(() => []) : [];\n    const phone: ResourceStats["phone"] = { totalMemory: null, availableMemory: null, thermal: null, storageTotal: null, storageFree: null, foregroundApp: null, foregroundAppMemory: null };
     if (deviceId) {
       try { const r = await execFileAsync(command("adb.exe"), ["-s", deviceId, "shell", "cat", "/proc/meminfo"], { windowsHide: true, timeout: 5000, env: toolEnv() }); phone.totalMemory = parseKb(r.stdout, "MemTotal"); phone.availableMemory = parseKb(r.stdout, "MemAvailable"); } catch {}
       try { const r = await execFileAsync(command("adb.exe"), ["-s", deviceId, "shell", "df", "-k", "/data"], { windowsHide: true, timeout: 7000, env: toolEnv() }); const row = r.stdout.trim().split(/\r?\n/).filter(Boolean).slice(-1)[0]?.trim().split(/\s+/); if (row && row.length >= 4) { phone.storageTotal = Number(row[1]) * 1024; phone.storageFree = Number(row[3]) * 1024; } } catch {}
@@ -47,12 +47,52 @@ export class DeviceManager {
     let cpuPercent: number | null = null; if (this.previousCpu) { const delta = totals.total - this.previousCpu.total; if (delta > 0) cpuPercent = Math.max(0, Math.min(100, (1 - (totals.idle - this.previousCpu.idle) / delta) * 100)); } this.previousCpu = totals;
     let disks: ResourceStats["pc"]["disks"] = [];
     if (process.platform === "win32") { try { const r = await execFileAsync("powershell.exe", ["-NoProfile", "-Command", "Get-CimInstance Win32_LogicalDisk -Filter \"DriveType=3\" | Select-Object DeviceID,Size,FreeSpace | ConvertTo-Json -Compress"], { windowsHide: true, timeout: 7000, maxBuffer: 1048576 }); const parsed = JSON.parse(r.stdout || "[]"); const rows = Array.isArray(parsed) ? parsed : [parsed]; disks = rows.filter((d: any) => Number(d.Size) > 0).map((d: any) => ({ name: String(d.DeviceID), total: Number(d.Size), free: Number(d.FreeSpace) })); } catch {} }
-    return { pc: { totalMemory: os.totalmem(), freeMemory: os.freemem(), appMemory: memory.rss, cpuCount: cpus.length, cpuPercent, disks }, phone, sampledAt: Date.now(), workloads: [
+    return { memoryProcesses, pc: { totalMemory: os.totalmem(), freeMemory: os.freemem(), appMemory: memory.rss, cpuCount: cpus.length, cpuPercent, disks }, phone, sampledAt: Date.now(), workloads: [
       { name: "Android apps and system", device: "PHONE", detail: "Application execution, services and app memory", active: Boolean(deviceId) },
       { name: "Video decode and desktop rendering", device: "PC", detail: "scrcpy video decode and Windows window rendering", active: Boolean(this.mirrorProcess || this.secondaryProcess) },
       { name: "Virtual Android display", device: "PHONE", detail: "Android creates and runs the secondary display", active: Boolean(this.secondaryProcess) },
       { name: "File source and storage", device: "PC", detail: "Files selected and staged from Windows; transfer runs on demand", active: Boolean(deviceId) }
     ] };
+  }
+  async getMemoryProcesses(deviceId: string): Promise<MemoryProcess[]> {
+    const error = await this.validate(deviceId);
+    if (error) throw new Error(error);
+    const [{ stdout: packagesOut }, { stdout: memOut }, { stdout: activityOut }] = await Promise.all([
+      execFileAsync(command("adb.exe"), ["-s", deviceId, "shell", "pm", "list", "packages", "-3"], { windowsHide: true, timeout: 12000, env: toolEnv() }),
+      execFileAsync(command("adb.exe"), ["-s", deviceId, "shell", "dumpsys", "meminfo"], { windowsHide: true, timeout: 15000, maxBuffer: 4 * 1024 * 1024, env: toolEnv() }),
+      execFileAsync(command("adb.exe"), ["-s", deviceId, "shell", "dumpsys", "activity", "activities"], { windowsHide: true, timeout: 8000, env: toolEnv() })
+    ]);
+    const allowed = new Set(packagesOut.split(/\r?\n/).map(line => line.trim().replace(/^package:/, "")).filter(name => /^[a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)+$/.test(name)));
+    const foregroundMatch = activityOut.match(/mResumedActivity:.*? ([a-zA-Z0-9_.]+)\//) || activityOut.match(/topResumedActivity=ActivityRecord\{[^ ]+ ([a-zA-Z0-9_.]+)\//);
+    const foreground = foregroundMatch?.[1] ?? "";
+    const memory = new Map<string, number>();
+    for (const line of memOut.split(/\r?\n/)) {
+      const match = line.match(/^\s*([\d,]+)K:\s+([a-zA-Z0-9_.]+)(?:\s+\(pid\s+\d+\))?/);
+      if (!match) continue;
+      const pkg = match[2], kb = Number(match[1].replace(/,/g, ""));
+      if (allowed.has(pkg) && Number.isFinite(kb)) memory.set(pkg, Math.max(memory.get(pkg) ?? 0, kb));
+    }
+    return [...memory.entries()].map(([packageName, memoryKb]) => ({
+      packageName, label: packageName.split(".").pop()!.replace(/[_-]+/g, " "),
+      memoryKb, isForeground: packageName === foreground, safeToStop: packageName !== foreground
+    })).sort((a, b) => b.memoryKb - a.memoryKb).slice(0, 20);
+  }
+  async stopBackgroundApp(deviceId: string, packageName: string) {
+    const error = await this.validate(deviceId);
+    if (error) return { ok: false, message: error };
+    if (!/^[a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)+$/.test(packageName)) return { ok: false, message: "Invalid Android package name." };
+    try {
+      const [{ stdout: packagesOut }, { stdout: activityOut }] = await Promise.all([
+        execFileAsync(command("adb.exe"), ["-s", deviceId, "shell", "pm", "list", "packages", "-3"], { windowsHide: true, timeout: 10000, env: toolEnv() }),
+        execFileAsync(command("adb.exe"), ["-s", deviceId, "shell", "dumpsys", "activity", "activities"], { windowsHide: true, timeout: 8000, env: toolEnv() })
+      ]);
+      const allowed = packagesOut.split(/\r?\n/).some(line => line.trim() === "package:" + packageName);
+      const foregroundMatch = activityOut.match(/mResumedActivity:.*? ([a-zA-Z0-9_.]+)\//) || activityOut.match(/topResumedActivity=ActivityRecord\{[^ ]+ ([a-zA-Z0-9_.]+)\//);
+      if (!allowed) return { ok: false, message: "Only installed third-party apps can be stopped by DualView. System apps are protected." };
+      if (foregroundMatch?.[1] === packageName) return { ok: false, message: "This is the foreground app. Switch to another app before stopping it." };
+      await execFileAsync(command("adb.exe"), ["-s", deviceId, "shell", "am", "force-stop", packageName], { windowsHide: true, timeout: 10000, env: toolEnv() });
+      return { ok: true, message: packageName + " was stopped. Android may restart it if a service or notification requires it." };
+    } catch (e) { return { ok: false, message: e instanceof Error ? e.message : "Could not stop this app." }; }
   }
   private async validate(deviceId: string): Promise<string | null> {
     const status = await this.getStatus();
