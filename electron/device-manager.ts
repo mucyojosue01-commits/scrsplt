@@ -97,7 +97,7 @@ export class DeviceManager {
       return { ok: true, message: packageName + " was stopped. Android may restart it if a service or notification requires it." };
     } catch (e) { return { ok: false, message: e instanceof Error ? e.message : "Could not stop this app." }; }
   }
-  private async validate(deviceId: string): Promise<string | null> {
+  private async validate(deviceId: string, requireVirtualDisplay = true): Promise<string | null> {
     const status = await this.getStatus();
     if (!status.adbAvailable || !status.scrcpyAvailable) return "DualView's bundled Android tools are unavailable. Reinstall DualView.";
     const device = status.devices.find((item) => item.id === deviceId);
@@ -106,7 +106,7 @@ export class DeviceManager {
     if (device.state !== "device") return "The phone is not ready. Check the connection and reconnect it.";
     try {
       const { stdout } = await execFileAsync(command("adb.exe"), ["-s", deviceId, "shell", "getprop", "ro.build.version.sdk"], { windowsHide: true, timeout: 7000, env: toolEnv() });
-      if (Number(stdout.trim()) < 29) return "A separate Android display requires Android 10 (API 29) or newer.";
+      if (requireVirtualDisplay && Number(stdout.trim()) < 29) return "A separate Android display requires Android 10 (API 29) or newer.";
     } catch { return "Could not check Android version. Reconnect the phone and try again."; }
     return null;
   }
@@ -122,7 +122,7 @@ export class DeviceManager {
   async startMirror(deviceId: string, orientation: "auto" | "portrait" | "landscape" = "auto") {
     if (this.mirrorProcess && !this.mirrorProcess.killed) return { ok: false, message: "The phone screen is already open." };
     const error = await this.validate(deviceId); if (error) return { ok: false, message: error };
-    const args = ["--serial", deviceId, "--stay-awake", "--max-fps=30", "--video-bit-rate=4M"];
+    const args = ["--serial", deviceId, "--stay-awake", "--max-fps=30", "--video-bit-rate=4M", "--no-audio"];
     if (orientation === "landscape") args.push("--orientation=90");
     if (orientation === "portrait") args.push("--orientation=0");
     return this.launch(args, p => { this.mirrorProcess = p; }, "Phone screen opened with balanced streaming settings.");
@@ -136,17 +136,9 @@ export class DeviceManager {
     const error = await this.validate(deviceId); if (error) return { ok: false, message: error };
     const w = Math.max(800, Math.min(3840, Math.round(width)));
     const h = Math.max(600, Math.min(2160, Math.round(height)));
-    let launcherPackage = "";
-    try {
-      const { stdout } = await execFileAsync(command("adb.exe"), ["-s", deviceId, "shell", "cmd", "package", "resolve-activity", "--brief", "-a", "android.intent.action.MAIN", "-c", "android.intent.category.HOME"], { windowsHide: true, timeout: 10000, env: toolEnv() });
-      const component = stdout.split(/\r?\n/).map(line => line.trim()).find(line => line.includes("/") && /^[a-zA-Z0-9_.]+\//.test(line));
-      if (component) launcherPackage = component.split("/")[0];
-    } catch {}
-    const args = ["--serial", deviceId, `--new-display=${w}x${h}`, "--fullscreen", "--window-title=DualView Android Desktop", "--video-bit-rate=4M", "--max-fps=30", "--stay-awake"];
-    if (launcherPackage) args.push(`--start-app=${launcherPackage}`);
-    return this.launch(args, p => { this.secondaryProcess = p; }, launcherPackage
-      ? "Android desktop opened full-screen with your phone's default launcher. Open apps from its app drawer."
-      : "Android desktop opened full-screen. This phone did not expose a default HOME launcher to Android's secondary display.");
+    // Start a conservative virtual display first. Do not force-launch the HOME package:
+    // several OEM launchers crash or report ANR when their package is started directly on a secondary display.
+    const args = ["--serial", deviceId, "--new-display=1280x720/160", "--window-title=DualView Android Desktop", "--video-bit-rate=3M", "--max-fps=30", "--stay-awake", "--no-audio"];
   }
   async stopSecondaryDisplay() {
     if (!this.secondaryProcess || this.secondaryProcess.killed) return { ok: true, message: "DualView desktop is not open." };
