@@ -10,7 +10,8 @@ function createWindow() {
 app.whenReady().then(() => {
   ipcMain.handle("dualview:status", () => manager.getStatus());
   ipcMain.handle("dualview:refresh", () => manager.getStatus());
-  ipcMain.handle("dualview:start-mirror", (_event, id: string) => manager.startMirror(id));
+  ipcMain.handle("dualview:start-mirror", (_event, id: string, orientation: "auto" | "portrait" | "landscape") => manager.startMirror(id, orientation));
+  ipcMain.handle("dualview:installed-apps", (_event, id: string) => manager.getInstalledApps(id));
   ipcMain.handle("dualview:stop-mirror", () => manager.stopMirror());
   ipcMain.handle("dualview:start-secondary", (_event, id: string, pkg: string) => manager.startSecondaryDisplay(id, pkg));
   ipcMain.handle("dualview:stop-secondary", () => manager.stopSecondaryDisplay());
