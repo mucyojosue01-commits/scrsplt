@@ -1,4 +1,4 @@
-import type { ScrcpySettings } from "../src/shared/types";
+import type { ScrcpySettings } from "./scrcpy-options";
 import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import path from "node:path";
 import { DeviceManager } from "./device-manager";
