@@ -37,7 +37,8 @@ export class DeviceManager {
   }
   private previousCpu: { idle: number; total: number } | null = null;
   async getResourceStats(deviceId?: string): Promise<ResourceStats> {
-    const memoryProcesses = deviceId ? await this.getMemoryProcesses(deviceId).catch(() => []) : [];\n    const phone: ResourceStats["phone"] = { totalMemory: null, availableMemory: null, thermal: null, storageTotal: null, storageFree: null, foregroundApp: null, foregroundAppMemory: null };
+    const memoryProcesses = deviceId ? await this.getMemoryProcesses(deviceId).catch(() => []) : [];
+    const phone: ResourceStats["phone"] = { totalMemory: null, availableMemory: null, thermal: null, storageTotal: null, storageFree: null, foregroundApp: null, foregroundAppMemory: null };
     if (deviceId) {
       try { const r = await execFileAsync(command("adb.exe"), ["-s", deviceId, "shell", "cat", "/proc/meminfo"], { windowsHide: true, timeout: 5000, env: toolEnv() }); phone.totalMemory = parseKb(r.stdout, "MemTotal"); phone.availableMemory = parseKb(r.stdout, "MemAvailable"); } catch {}
       try { const r = await execFileAsync(command("adb.exe"), ["-s", deviceId, "shell", "df", "-k", "/data"], { windowsHide: true, timeout: 7000, env: toolEnv() }); const row = r.stdout.trim().split(/\r?\n/).filter(Boolean).slice(-1)[0]?.trim().split(/\s+/); if (row && row.length >= 4) { phone.storageTotal = Number(row[1]) * 1024; phone.storageFree = Number(row[3]) * 1024; } } catch {}
