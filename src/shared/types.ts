@@ -1,7 +1,7 @@
 export type DeviceState = "device" | "unauthorized" | "offline" | "unknown";
 export interface AndroidDevice { id: string; state: DeviceState; model?: string }
 export interface MemoryProcess { packageName: string; label: string; memoryKb: number; isForeground: boolean; safeToStop: boolean }
-export interface ScrcpySettings { audio:boolean; stayAwake:boolean; orientation:"auto"|"portrait"|"landscape"; maxSize:number; maxFps:number; videoBitRate:string; fullscreen:boolean; turnScreenOff:boolean; showTouches:boolean; alwaysOnTop:boolean; windowBorderless:boolean }
+export interface ScrcpySettings { audio:boolean; stayAwake:boolean; orientation:"auto"|"portrait"|"landscape"; maxSize:number; displayResolution:"1280x720"|"1600x900"|"1920x1080"; maxFps:number; videoBitRate:string; fullscreen:boolean; turnScreenOff:boolean; showTouches:boolean; alwaysOnTop:boolean; windowBorderless:boolean }
 export interface ResourceStats { memoryProcesses: MemoryProcess[]; workloads: WorkloadInfo[]; sampledAt: number;
   pc: { totalMemory: number; freeMemory: number; appMemory: number; cpuCount: number; cpuPercent: number | null; disks: Array<{ name: string; total: number; free: number }> };
   phone: { totalMemory: number | null; availableMemory: number | null; thermal: string | null; storageTotal: number | null; storageFree: number | null; foregroundApp: string | null; foregroundAppMemory: string | null };
