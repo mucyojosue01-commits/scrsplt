@@ -3,12 +3,14 @@ import { Cable, Monitor, RefreshCw, Smartphone, Play, Square, ShieldCheck, AppWi
 import type { DualViewStatus, InstalledAndroidApp } from "../shared/types";
 const empty: DualViewStatus = { adbAvailable:false, scrcpyAvailable:false, devices:[], mirrorRunning:false, secondaryRunning:false };
 export default function App() {
-  const [status,setStatus]=useState(empty), [selected,setSelected]=useState(""), [pkg,setPkg]=useState("com.android.settings");\n  const [apps,setApps]=useState<InstalledAndroidApp[]>([]), [appsLoading,setAppsLoading]=useState(false), [orientation,setOrientation]=useState<"auto"|"portrait"|"landscape">("auto");
+  const [status,setStatus]=useState(empty), [selected,setSelected]=useState(""), [pkg,setPkg]=useState("com.android.settings");
+  const [apps,setApps]=useState<InstalledAndroidApp[]>([]), [appsLoading,setAppsLoading]=useState(false), [orientation,setOrientation]=useState<"auto"|"portrait"|"landscape">("auto");
   const [tab,setTab]=useState<"phone"|"second">("phone"), [busy,setBusy]=useState(false), [notice,setNotice]=useState("Connect your Android phone with a USB data cable.");
   const refresh=useCallback(async()=>{ if(!window.dualview)return; try { const next=await window.dualview.refreshDevices(); setStatus(next); setSelected(v=>next.devices.some(d=>d.id===v)?v:next.devices.find(d=>d.state==="device")?.id??""); if(!next.adbAvailable||!next.scrcpyAvailable)setNotice("DualView's bundled Android tools are unavailable."); else if(!next.devices.length)setNotice("Connect your phone and approve USB debugging."); else setNotice("Phone connected. Choose a workspace."); } catch {setNotice("Could not read phone status.");}},[]);
   useEffect(()=>{void refresh();const timer=window.setInterval(()=>void refresh(),5000);return()=>window.clearInterval(timer)},[refresh]);
   const device=status.devices.find(d=>d.id===selected&&d.state==="device");
-  async function loadApps(){if(!selected)return;setAppsLoading(true);try{const found=await window.dualview!.getInstalledApps(selected);setApps(found);if(found.length){setPkg(found[0].packageName);setNotice(`Loaded ${found.length} launchable apps from your phone.`)}else setNotice("No launchable apps were found.")}catch(e){setNotice(e instanceof Error?e.message:"Could not load installed apps.")}finally{setAppsLoading(false)}}\n  async function action(fn:()=>Promise<{ok:boolean;message:string}>){setBusy(true);try{const r=await fn();setNotice(r.message)}finally{setBusy(false);await refresh()}}
+  async function loadApps(){if(!selected)return;setAppsLoading(true);try{const found=await window.dualview!.getInstalledApps(selected);setApps(found);if(found.length){setPkg(found[0].packageName);setNotice(`Loaded ${found.length} launchable apps from your phone.`)}else setNotice("No launchable apps were found.")}catch(e){setNotice(e instanceof Error?e.message:"Could not load installed apps.")}finally{setAppsLoading(false)}}
+  async function action(fn:()=>Promise<{ok:boolean;message:string}>){setBusy(true);try{const r=await fn();setNotice(r.message)}finally{setBusy(false);await refresh()}}
   return <main className="app-shell">
     <aside className="sidebar"><div className="brand"><div className="brand-mark"><span/><span/></div><div><strong>dualview</strong><small>PHONE × PC</small></div></div>
       <div className="side-label">WORKSPACE</div>
