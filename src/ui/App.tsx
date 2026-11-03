@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { AppWindow, Cable, FileUp, Monitor, Play, RefreshCw, ShieldCheck, Smartphone, Square, Wifi, Cpu, HardDrive } from "lucide-react";
 import type { DualViewStatus, ResourceStats } from "../shared/types";
+import MemoryManager from "./MemoryManager";
 const empty: DualViewStatus = { adbAvailable:false, scrcpyAvailable:false, devices:[], mirrorRunning:false, secondaryRunning:false };
-const blankStats: ResourceStats = { pc:{totalMemory:0,freeMemory:0,appMemory:0,cpuCount:0,cpuPercent:null,disks:[]}, phone:{totalMemory:null,availableMemory:null,thermal:null,storageTotal:null,storageFree:null,foregroundApp:null,foregroundAppMemory:null}, workloads:[], sampledAt:0 };
+const blankStats: ResourceStats = { memoryProcesses:[], pc:{totalMemory:0,freeMemory:0,appMemory:0,cpuCount:0,cpuPercent:null,disks:[]}, phone:{totalMemory:null,availableMemory:null,thermal:null,storageTotal:null,storageFree:null,foregroundApp:null,foregroundAppMemory:null}, workloads:[], sampledAt:0 };
 const gb=(n:number|null)=>n===null?"—":(n/1024/1024/1024).toFixed(1)+" GB";
 export default function App() {
   const [status,setStatus]=useState(empty), [selected,setSelected]=useState("");
@@ -13,6 +14,7 @@ export default function App() {
   useEffect(()=>{if(!window.dualview)return;let active=true;const load=async()=>{try{const s=await window.dualview!.getResourceStats(selected||undefined);if(active)setStats(s)}catch{}};void load();const t=window.setInterval(()=>void load(),5000);return()=>{active=false;window.clearInterval(t)}},[selected]);
   const device=status.devices.find(d=>d.id===selected&&d.state==="device");
   async function action(fn:()=>Promise<{ok:boolean;message:string}>){setBusy(true);try{const r=await fn();setNotice(r.message)}catch(e){setNotice(e instanceof Error?e.message:"Operation failed.")}finally{setBusy(false);await refresh()}}
+  async function stopBackgroundApp(packageName:string){ if(!selected||!window.dualview)return; setBusy(true); try{const result=await window.dualview.stopBackgroundApp(selected,packageName);setNotice(result.message);const next=await window.dualview.getResourceStats(selected);setStats(next);}catch(e){setNotice(e instanceof Error?e.message:"Could not stop app.");}finally{setBusy(false);} }
   const pct=stats.pc.totalMemory?Math.round((1-stats.pc.freeMemory/stats.pc.totalMemory)*100):0;
   return <main className="app-shell">
     <aside className="sidebar"><div className="brand"><div className="brand-mark"><span/><span/></div><div><strong>dualview</strong><small>PHONE × PC</small></div></div><div className="side-label">WORKSPACE</div>
@@ -30,6 +32,7 @@ export default function App() {
           <article className="panel resource-card"><div className="resource-title"><Cpu size={18}/><b>Windows PC</b><span>DISPLAY + FILE ENGINE</span></div><div className="resource-number">{gb(stats.pc.freeMemory)} <small>free RAM</small></div><div className="meter"><i style={{width:pct+"%"}}/></div><div className="resource-foot"><span>{gb(stats.pc.totalMemory)} total RAM</span><span>{pct}% used</span></div><div className="resource-foot"><span>{gb(stats.pc.appMemory)} DualView process</span><span>{stats.pc.cpuCount} CPU cores</span></div></article>
           <article className="panel resource-card"><div className="resource-title"><Smartphone size={18}/><b>Android phone</b><span>ANDROID SYSTEM</span></div><div className="resource-number">{gb(stats.phone.availableMemory)} <small>available RAM</small></div><div className="resource-foot"><span>{gb(stats.phone.totalMemory)} total RAM</span><span>{stats.phone.thermal??"Temperature unavailable"}</span></div><p className="resource-hint">Phone RAM still runs Android and its apps. DualView reduces extra work by moving supported decoding, rendering, scaling and file handling to Windows; it cannot turn PC RAM into Android RAM.</p></article>
         </section>
+        <MemoryManager processes={stats.memoryProcesses} deviceId={device?.id??""} onStop={stopBackgroundApp} busy={busy}/>
         <div className="section-heading"><div><span className="eyebrow">RESOURCE CENTER</span><h3>Storage, processor & workload distribution</h3></div><span className="live-status">LIVE DEVICE TELEMETRY</span></div>
         <section className="resource-grid">
           <article className="panel resource-card"><div className="resource-title"><Cpu size={18}/><b>PC processor</b><span>WINDOWS</span></div><div className="resource-number">{stats.pc.cpuPercent===null?"—":stats.pc.cpuPercent.toFixed(0)+"%"} <small>CPU usage</small></div><div className="resource-foot"><span>{stats.pc.cpuCount} logical processors</span><span>DualView process: {gb(stats.pc.appMemory)}</span></div></article>
