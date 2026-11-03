@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("dualview", {
   startMirror: (id: string, orientation: "auto" | "portrait" | "landscape") => ipcRenderer.invoke("dualview:start-mirror", id, orientation),
   stopMirror: () => ipcRenderer.invoke("dualview:stop-mirror"),
   startSecondaryDisplay: (id: string) => ipcRenderer.invoke("dualview:start-secondary", id),
+  enableMultiWindow: (id: string) => ipcRenderer.invoke("dualview:enable-multi-window", id),
   sendFiles: (id: string) => ipcRenderer.invoke("dualview:send-files", id),
   stopSecondaryDisplay: () => ipcRenderer.invoke("dualview:stop-secondary"),
 });
