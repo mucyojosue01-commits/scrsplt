@@ -45,3 +45,7 @@
 .resource-hint{font-size:9px;line-height:1.5;color:#7d8b80;margin:14px 0 0}
 .file-bridge{margin:14px 0 16px}
 @media(max-width:1050px){.resource-grid{grid-template-columns:1fr 1fr}}
+
+.resource-card .resource-foot b{color:#4d6252;font-weight:700}
+.resource-card .resource-foot span{max-width:72%;text-align:right;line-height:1.45}
+.resource-card .resource-title span{white-space:nowrap}
