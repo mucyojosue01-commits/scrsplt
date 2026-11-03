@@ -12,7 +12,6 @@ app.whenReady().then(() => {
   ipcMain.handle("dualview:refresh", () => manager.getStatus());
   ipcMain.handle("dualview:resources", (_event, id?: string) => manager.getResourceStats(id));
   ipcMain.handle("dualview:start-mirror", (_event, id: string, orientation: "auto" | "portrait" | "landscape") => manager.startMirror(id, orientation));
-  ipcMain.handle("dualview:installed-apps", (_event, id: string) => manager.getInstalledApps(id));
   ipcMain.handle("dualview:stop-mirror", () => manager.stopMirror());
   ipcMain.handle("dualview:start-secondary", (_event, id: string) => {
     const { width, height } = screen.getPrimaryDisplay().size;
