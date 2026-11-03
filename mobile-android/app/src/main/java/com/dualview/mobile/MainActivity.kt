@@ -77,7 +77,7 @@ class MainActivity : Activity() {
                 if (!HostBridge.isRunning()) {
                     showDiagnostic("Shizuku is not running yet. Start it on this phone, then return and try again.")
                 } else if (HostBridge.hasShellPermission()) {
-                    showDiagnostic(HostBridge.diagnostics())
+                    runHostDiagnostics()
                 } else {
                     HostBridge.requestPermission()
                     showDiagnostic("Permission request sent. Approve the Shizuku prompt, then tap Run host diagnostics.")
@@ -105,6 +105,11 @@ class MainActivity : Activity() {
     }
 
     private var diagnosticView: TextView? = null
+
+    private fun runHostDiagnostics() {
+        showDiagnostic("Running read-only host diagnostics…")
+        HostBridge.diagnosticsAsync(this) { result -> showDiagnostic(result) }
+    }
 
     private fun showDiagnostic(message: String) {
         val view = diagnosticView
