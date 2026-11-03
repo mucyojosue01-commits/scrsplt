@@ -6,7 +6,8 @@ import { buildScrcpyArgs, parseAdbDevices } from "./adb-parser";
 const execFileAsync = promisify(execFile);
 export { buildScrcpyArgs, parseAdbDevices };
 export interface DeviceRecord { id: string; state: "device" | "unauthorized" | "offline" | "unknown"; model?: string }
-export interface ToolStatus { adbAvailable: boolean; scrcpyAvailable: boolean; devices: DeviceRecord[] }\nexport interface InstalledApp { packageName: string; label: string }
+export interface ToolStatus { adbAvailable: boolean; scrcpyAvailable: boolean; devices: DeviceRecord[] }
+export interface InstalledApp { packageName: string; label: string }
 function toolPath(name: string): string {
   return app.isPackaged ? path.join(process.resourcesPath, "scrcpy", name) : path.join(process.cwd(), "vendor", "scrcpy", name);
 }
@@ -24,7 +25,16 @@ export class DeviceManager {
     try { await execFileAsync(command("scrcpy.exe"), ["--version"], { windowsHide: true, timeout: 7000, env: toolEnv() }); scrcpyAvailable = true; } catch {}
     return { adbAvailable, scrcpyAvailable, devices, mirrorRunning: Boolean(this.mirrorProcess && !this.mirrorProcess.killed), secondaryRunning: Boolean(this.secondaryProcess && !this.secondaryProcess.killed) };
   }
-  async getInstalledApps(deviceId: string): Promise<InstalledApp[]> {\n    const error = await this.validate(deviceId); if (error) throw new Error(error);\n    const { stdout } = await execFileAsync(command("adb.exe"), ["-s", deviceId, "shell", "cmd", "package", "query-activities", "--brief", "-a", "android.intent.action.MAIN", "-c", "android.intent.category.LAUNCHER"], { windowsHide: true, timeout: 15000, env: toolEnv() });\n    const packages = new Set<string>();\n    for (const line of stdout.split(/\\r?\\n/)) {\n      const match = line.trim().match(/(?:ComponentInfo\\{)?([a-zA-Z0-9_]+(?:\\.[a-zA-Z0-9_]+)+)\\//);\n      if (match) packages.add(match[1]);\n    }\n    return [...packages].map(packageName => ({ packageName, label: packageName.split(".").pop()!.replace(/[_-]+/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/\\b\\w/g, c => c.toUpperCase()) })).sort((a,b)=>a.label.localeCompare(b.label));\n  }\n  private async validate(deviceId: string): Promise<string | null> {
+  async getInstalledApps(deviceId: string): Promise<InstalledApp[]> {
+    const error = await this.validate(deviceId); if (error) throw new Error(error);
+    const { stdout } = await execFileAsync(command("adb.exe"), ["-s", deviceId, "shell", "cmd", "package", "query-activities", "--brief", "-a", "android.intent.action.MAIN", "-c", "android.intent.category.LAUNCHER"], { windowsHide: true, timeout: 15000, env: toolEnv() });
+    const packages = new Set<string>();
+    for (const line of stdout.split(/\\r?\\n/)) {
+      const match = line.trim().match(/(?:ComponentInfo\\{)?([a-zA-Z0-9_]+(?:\\.[a-zA-Z0-9_]+)+)\\//);
+      if (match) packages.add(match[1]);
+    }
+    return [...packages].map(packageName => ({ packageName, label: packageName.split(".").pop()!.replace(/[_-]+/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/\\b\\w/g, c => c.toUpperCase()) })).sort((a,b)=>a.label.localeCompare(b.label));\n  }
+  private async validate(deviceId: string): Promise<string | null> {
     const status = await this.getStatus();
     if (!status.adbAvailable || !status.scrcpyAvailable) return "DualView's bundled Android tools are unavailable. Reinstall DualView.";
     const device = status.devices.find((item) => item.id === deviceId);
@@ -49,7 +59,10 @@ export class DeviceManager {
   async startMirror(deviceId: string, orientation: "auto" | "portrait" | "landscape" = "auto") {
     if (this.mirrorProcess && !this.mirrorProcess.killed) return { ok: false, message: "The phone screen is already open." };
     const error = await this.validate(deviceId); if (error) return { ok: false, message: error };
-    const args = ["--serial", deviceId];\n    if (orientation === "landscape") args.push("--orientation=90");\n    if (orientation === "portrait") args.push("--orientation=0");\n    return this.launch(args, (p) => { this.mirrorProcess = p; }, `Phone screen opened in ${orientation} orientation.`);
+    const args = ["--serial", deviceId];
+    if (orientation === "landscape") args.push("--orientation=90");
+    if (orientation === "portrait") args.push("--orientation=0");
+    return this.launch(args, (p) => { this.mirrorProcess = p; }, `Phone screen opened in ${orientation} orientation.`);
   }
   async stopMirror() {
     if (!this.mirrorProcess || this.mirrorProcess.killed) return { ok: true, message: "Phone screen is not open." };
