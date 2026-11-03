@@ -31,7 +31,8 @@ function parseKb(text: string, key: string): number | null {
 export class DeviceManager {
   private mirrorProcess: ChildProcess | null = null;
   private secondaryProcess: ChildProcess | null = null;
-  private scrcpyFlags = new Set<string>();\n  private scrcpyFlagsLoaded = false;\n  private dexCache = new Map<string, { detected: boolean; model: string; detail: string }>();
+  private scrcpyFlags = new Set<string>();
+  private scrcpyFlagsLoaded = false;\n  private dexCache = new Map<string, { detected: boolean; model: string; detail: string }>();
   private async readScrcpyFlags(): Promise<Set<string>> {
     try { const { stdout, stderr } = await execFileAsync(command("scrcpy.exe"), ["--help"], { windowsHide: true, timeout: 7000, maxBuffer: 2 * 1024 * 1024, env: toolEnv() }); return parseScrcpyHelpFlags(stdout + "\n" + stderr); } catch { return new Set<string>(); }
   }
