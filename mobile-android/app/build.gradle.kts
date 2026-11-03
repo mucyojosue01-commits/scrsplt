@@ -5,6 +5,7 @@ plugins {
 android {
     namespace = "com.dualview.mobile"
     compileSdk = 35
+    buildFeatures { aidl = true }
     defaultConfig {
         applicationId = "com.dualview.mobile"
         minSdk = 26
