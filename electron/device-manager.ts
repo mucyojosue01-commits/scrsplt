@@ -9,8 +9,8 @@ export { buildScrcpyArgs, parseAdbDevices };
 export interface DeviceRecord { id: string; state: "device" | "unauthorized" | "offline" | "unknown"; model?: string }
 export interface ToolStatus { adbAvailable: boolean; scrcpyAvailable: boolean; devices: DeviceRecord[] }
 export interface ResourceStats {
-  pc: { totalMemory: number; freeMemory: number; appMemory: number; cpuCount: number };
-  phone: { totalMemory: number | null; availableMemory: number | null; thermal: string | null };
+  pc: { totalMemory: number; freeMemory: number; appMemory: number; cpuCount: number; cpuPercent: number | null; disks: Array<{ name: string; total: number; free: number }> };
+  phone: { totalMemory: number | null; availableMemory: number | null; thermal: string | null; storageTotal: number | null; storageFree: number | null; foregroundApp: string | null; foregroundAppMemory: string | null }; workloads: Array<{ name: string; device: "PC" | "PHONE"; detail: string; active: boolean }>; sampledAt: number;
 }
 function toolPath(name: string): string {
   return app.isPackaged ? path.join(process.resourcesPath, "scrcpy", name) : path.join(process.cwd(), "vendor", "scrcpy", name);
@@ -33,22 +33,26 @@ export class DeviceManager {
     try { await execFileAsync(command("scrcpy.exe"), ["--version"], { windowsHide: true, timeout: 7000, env: toolEnv() }); scrcpyAvailable = true; } catch {}
     return { adbAvailable, scrcpyAvailable, devices, mirrorRunning: Boolean(this.mirrorProcess && !this.mirrorProcess.killed), secondaryRunning: Boolean(this.secondaryProcess && !this.secondaryProcess.killed) };
   }
+  private previousCpu: { idle: number; total: number } | null = null;
   async getResourceStats(deviceId?: string): Promise<ResourceStats> {
-    let phone: ResourceStats["phone"] = { totalMemory: null, availableMemory: null, thermal: null };
+    const phone: ResourceStats["phone"] = { totalMemory: null, availableMemory: null, thermal: null, storageTotal: null, storageFree: null, foregroundApp: null, foregroundAppMemory: null };
     if (deviceId) {
-      try {
-        const { stdout } = await execFileAsync(command("adb.exe"), ["-s", deviceId, "shell", "cat", "/proc/meminfo"], { windowsHide: true, timeout: 5000, env: toolEnv() });
-        phone.totalMemory = parseKb(stdout, "MemTotal");
-        phone.availableMemory = parseKb(stdout, "MemAvailable");
-      } catch {}
-      try {
-        const { stdout } = await execFileAsync(command("adb.exe"), ["-s", deviceId, "shell", "dumpsys", "thermalservice"], { windowsHide: true, timeout: 5000, env: toolEnv() });
-        const temps = [...stdout.matchAll(/(?:Temperature|mValue)=\s*(-?\d+(?:\.\d+)?)/gi)].map(m => Number(m[1])).filter(n => n > 0 && n < 150);
-        if (temps.length) phone.thermal = `${Math.max(...temps).toFixed(1)} °C (highest reported sensor)`;
-      } catch {}
+      try { const r = await execFileAsync(command("adb.exe"), ["-s", deviceId, "shell", "cat", "/proc/meminfo"], { windowsHide: true, timeout: 5000, env: toolEnv() }); phone.totalMemory = parseKb(r.stdout, "MemTotal"); phone.availableMemory = parseKb(r.stdout, "MemAvailable"); } catch {}
+      try { const r = await execFileAsync(command("adb.exe"), ["-s", deviceId, "shell", "df", "-k", "/data"], { windowsHide: true, timeout: 7000, env: toolEnv() }); const row = r.stdout.trim().split(/\\r?\\n/).filter(Boolean).slice(-1)[0]?.trim().split(/\\s+/); if (row && row.length >= 4) { phone.storageTotal = Number(row[1]) * 1024; phone.storageFree = Number(row[3]) * 1024; } } catch {}
+      try { const r = await execFileAsync(command("adb.exe"), ["-s", deviceId, "shell", "dumpsys", "thermalservice"], { windowsHide: true, timeout: 5000, env: toolEnv() }); const values = [...r.stdout.matchAll(/(?:Temperature|mValue)=\\s*(-?\\d+(?:\\.\\d+)?)/gi)].map(m => Number(m[1])).filter(n => n > 0 && n < 150); if (values.length) phone.thermal = Math.max(...values).toFixed(1) + " °C (highest reported sensor)"; } catch {}
+      try { const r = await execFileAsync(command("adb.exe"), ["-s", deviceId, "shell", "dumpsys", "activity", "activities"], { windowsHide: true, timeout: 7000, env: toolEnv() }); const m = r.stdout.match(/mResumedActivity:.*? ([a-zA-Z0-9_.]+)\\//) || r.stdout.match(/topResumedActivity=ActivityRecord\\{[^ ]+ ([a-zA-Z0-9_.]+)\\//); if (m) { phone.foregroundApp = m[1]; const mem = await execFileAsync(command("adb.exe"), ["-s", deviceId, "shell", "dumpsys", "meminfo", m[1]], { windowsHide: true, timeout: 7000, env: toolEnv() }); const total = mem.stdout.match(/TOTAL\\s+(\\d+)/); if (total) phone.foregroundAppMemory = Math.round(Number(total[1]) / 1024) + " MB PSS"; } } catch {}
     }
-    const memory = process.memoryUsage();
-    return { pc: { totalMemory: os.totalmem(), freeMemory: os.freemem(), appMemory: memory.rss, cpuCount: os.cpus().length }, phone };
+    const memory = process.memoryUsage(), cpus = os.cpus();
+    const totals = cpus.reduce((a, cpu) => ({ idle: a.idle + cpu.times.idle, total: a.total + Object.values(cpu.times).reduce((x, y) => x + y, 0) }), { idle: 0, total: 0 });
+    let cpuPercent: number | null = null; if (this.previousCpu) { const delta = totals.total - this.previousCpu.total; if (delta > 0) cpuPercent = Math.max(0, Math.min(100, (1 - (totals.idle - this.previousCpu.idle) / delta) * 100)); } this.previousCpu = totals;
+    let disks: ResourceStats["pc"]["disks"] = [];
+    if (process.platform === "win32") { try { const r = await execFileAsync("powershell.exe", ["-NoProfile", "-Command", "Get-CimInstance Win32_LogicalDisk -Filter \"DriveType=3\" | Select-Object DeviceID,Size,FreeSpace | ConvertTo-Json -Compress"], { windowsHide: true, timeout: 7000, maxBuffer: 1048576 }); const parsed = JSON.parse(r.stdout || "[]"); const rows = Array.isArray(parsed) ? parsed : [parsed]; disks = rows.filter((d: any) => Number(d.Size) > 0).map((d: any) => ({ name: String(d.DeviceID), total: Number(d.Size), free: Number(d.FreeSpace) })); } catch {} }
+    return { pc: { totalMemory: os.totalmem(), freeMemory: os.freemem(), appMemory: memory.rss, cpuCount: cpus.length, cpuPercent, disks }, phone, sampledAt: Date.now(), workloads: [
+      { name: "Android apps and system", device: "PHONE", detail: "Application execution, services and app memory", active: Boolean(deviceId) },
+      { name: "Video decode and desktop rendering", device: "PC", detail: "scrcpy video decode and Windows window rendering", active: Boolean(this.mirrorProcess || this.secondaryProcess) },
+      { name: "Virtual Android display", device: "PHONE", detail: "Android creates and runs the secondary display", active: Boolean(this.secondaryProcess) },
+      { name: "File source and storage", device: "PC", detail: "Files selected and staged from Windows; transfer runs on demand", active: Boolean(deviceId) }
+    ] };
   }
   private async validate(deviceId: string): Promise<string | null> {
     const status = await this.getStatus();
