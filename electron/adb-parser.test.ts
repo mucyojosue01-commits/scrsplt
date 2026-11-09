@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildScrcpyArgs, parseAdbDevices } from "./adb-parser";
+import { parseThermalStatus } from "./device-manager";
 
 describe("parseAdbDevices", () => {
   it("parses connected Android devices and their model names", () => {
@@ -23,5 +24,17 @@ describe("buildScrcpyArgs", () => {
       "--window-x", "0", "--window-y", "0",
       "--stay-awake", "--max-size", "1920", "--video-bit-rate", "8M"
     ]);
+  });
+});
+
+
+describe("parseThermalStatus", () => {
+  it("maps Android thermal service status levels", () => {
+    expect(parseThermalStatus("mThermalStatus: 0")).toBe("none");
+    expect(parseThermalStatus("mThermalStatus: 2")).toBe("moderate");
+    expect(parseThermalStatus("mThermalStatus: 6")).toBe("shutdown");
+  });
+  it("does not invent a thermal status when Android omits it", () => {
+    expect(parseThermalStatus("No thermal status available")).toBe("unknown");
   });
 });
