@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildScrcpyArgs, parseAdbDevices } from "./adb-parser";
-import { parseThermalStatus } from "./device-manager";
+import { parseThermalStatus } from "./adb-parser";
 
 describe("parseAdbDevices", () => {
   it("parses connected Android devices and their model names", () => {
