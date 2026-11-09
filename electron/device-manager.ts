@@ -8,6 +8,12 @@ const execFileAsync = promisify(execFile);
 export { buildScrcpyArgs, parseAdbDevices };
 export interface DeviceRecord { id: string; state: "device" | "unauthorized" | "offline" | "unknown"; model?: string }
 export interface ToolStatus { adbAvailable: boolean; scrcpyAvailable: boolean; devices: DeviceRecord[] }
+export type StreamProfile = "cool" | "balanced" | "quality";
+const STREAM_PROFILES: Record<StreamProfile, { maxSize: number; fps: number; bitrate: string }> = {
+  cool: { maxSize: 960, fps: 15, bitrate: "1200K" },
+  balanced: { maxSize: 1280, fps: 24, bitrate: "2M" },
+  quality: { maxSize: 1920, fps: 30, bitrate: "4M" }
+};
 export interface ResourceStats {
   pc: { totalMemory: number; freeMemory: number; appMemory: number; cpuCount: number; cpuPercent: number | null; disks: Array<{ name: string; total: number; free: number }> };
   phone: { totalMemory: number | null; availableMemory: number | null; thermal: string | null; storageTotal: number | null; storageFree: number | null; foregroundApp: string | null; foregroundAppMemory: string | null }; workloads: Array<{ name: string; device: "PC" | "PHONE"; detail: string; active: boolean }>; sampledAt: number;
@@ -76,10 +82,11 @@ export class DeviceManager {
       child.once("exit", () => assign(null));
     });
   }
-  async startMirror(deviceId: string, orientation: "auto" | "portrait" | "landscape" = "auto") {
+  async startMirror(deviceId: string, orientation: "auto" | "portrait" | "landscape" = "auto", profile: StreamProfile = "cool") {
     if (this.mirrorProcess && !this.mirrorProcess.killed) return { ok: false, message: "The phone screen is already open." };
     const error = await this.validate(deviceId); if (error) return { ok: false, message: error };
-    const args = ["--serial", deviceId, "--stay-awake", "--max-fps=30", "--video-bit-rate=4M"];
+    const p = STREAM_PROFILES[profile];
+    const args = ["--serial", deviceId, "--stay-awake", `--max-size=${p.maxSize}`, `--max-fps=${p.fps}`, `--video-bit-rate=${p.bitrate}`, "--video-codec=h264", "--no-audio"];
     if (orientation === "landscape") args.push("--orientation=90");
     if (orientation === "portrait") args.push("--orientation=0");
     return this.launch(args, p => { this.mirrorProcess = p; }, "Phone screen opened with balanced streaming settings.");
@@ -88,7 +95,7 @@ export class DeviceManager {
     if (!this.mirrorProcess || this.mirrorProcess.killed) return { ok: true, message: "Phone screen is not open." };
     this.mirrorProcess.kill(); this.mirrorProcess = null; return { ok: true, message: "Phone screen closed." };
   }
-  async startSecondaryDisplay(deviceId: string, width: number, height: number) {
+  async startSecondaryDisplay(deviceId: string, width: number, height: number, profile: StreamProfile = "cool") {
     if (this.secondaryProcess && !this.secondaryProcess.killed) return { ok: false, message: "The DualView desktop is already running." };
     const error = await this.validate(deviceId); if (error) return { ok: false, message: error };
     const w = Math.max(800, Math.min(3840, Math.round(width)));
@@ -99,7 +106,8 @@ export class DeviceManager {
       const component = stdout.split(/\r?\n/).map(line => line.trim()).find(line => line.includes("/") && /^[a-zA-Z0-9_.]+\//.test(line));
       if (component) launcherPackage = component.split("/")[0];
     } catch {}
-    const args = ["--serial", deviceId, `--new-display=${w}x${h}`, "--fullscreen", "--window-title=DualView Android Desktop", "--video-bit-rate=4M", "--max-fps=30", "--stay-awake"];
+    const p = STREAM_PROFILES[profile];
+    const args = ["--serial", deviceId, `--new-display=${w}x${h}`, "--fullscreen", "--window-title=DualView Android Desktop", `--max-size=${p.maxSize}`, `--video-bit-rate=${p.bitrate}`, `--max-fps=${p.fps}`, "--video-codec=h264", "--no-audio", "--stay-awake"];
     if (launcherPackage) args.push(`--start-app=${launcherPackage}`);
     return this.launch(args, p => { this.secondaryProcess = p; }, launcherPackage
       ? "Android desktop opened full-screen with your phone's default launcher. Open apps from its app drawer."
