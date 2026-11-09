@@ -140,13 +140,15 @@ export class DeviceManager {
     const p = STREAM_PROFILES[profile];
     const args = ["--serial", deviceId, `--new-display=${w}x${h}`, "--fullscreen", "--window-title=DualView Android Desktop", `--max-size=${p.maxSize}`, `--video-bit-rate=${p.bitrate}`, `--max-fps=${p.fps}`, "--video-codec=h264", "--no-audio", "--stay-awake"];
     if (launcherPackage) args.push(`--start-app=${launcherPackage}`);
-    return this.launch(args, p => { this.secondaryProcess = p; }, launcherPackage
-      ? "Android desktop opened full-screen with your phone's default launcher. Open apps from its app drawer."
+    const result = await this.launch(args, p => { this.secondaryProcess = p; }, launcherPackage
+      ? "Android desktop opened full-screen with thermal monitoring."
       : "Android desktop opened full-screen. This phone did not expose a default HOME launcher to Android's secondary display.");
+    if (result.ok) this.startThermalGuard(deviceId);
+    return result;
   }
   async stopSecondaryDisplay() {
     if (!this.secondaryProcess || this.secondaryProcess.killed) return { ok: true, message: "DualView desktop is not open." };
-    this.secondaryProcess.kill(); this.secondaryProcess = null; return { ok: true, message: "DualView desktop closed." };
+    this.secondaryProcess.kill(); this.secondaryProcess = null; if (!this.mirrorProcess) this.stopThermalGuard(); return { ok: true, message: "DualView desktop closed." };
   }
   async enableMultiWindow(deviceId: string) {
     const error = await this.validate(deviceId);
