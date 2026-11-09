@@ -11,7 +11,7 @@ export interface ToolStatus { adbAvailable: boolean; scrcpyAvailable: boolean; d
 export type StreamProfile = "cool" | "balanced" | "quality";
 export interface ResourceStats {
   pc: { totalMemory: number; freeMemory: number; appMemory: number; cpuCount: number; cpuPercent: number | null; disks: Array<{ name: string; total: number; free: number }> };
-  phone: { totalMemory: number | null; availableMemory: number | null; thermal: string | null; storageTotal: number | null; storageFree: number | null; foregroundApp: string | null; foregroundAppMemory: string | null }; workloads: Array<{ name: string; device: "PC" | "PHONE"; detail: string; active: boolean }>; sampledAt: number;
+  phone: { totalMemory: number | null; availableMemory: number | null; thermal: string | null; storageTotal: number | null; storageFree: number | null; foregroundApp: string | null; foregroundAppMemory: string | null }; workloads: Array<{ name: string; device: "PC" | "PHONE"; detail: string; active: boolean }>; sampledAt: number; thermalControl: { enabled: boolean; level: ThermalLevel; action: string; lastCheckedAt: number | null };
 }
 function toolPath(name: string): string {
   return app.isPackaged ? path.join(process.resourcesPath, "scrcpy", name) : path.join(process.cwd(), "vendor", "scrcpy", name);
