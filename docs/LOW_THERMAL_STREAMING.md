@@ -35,3 +35,8 @@ For memory, do not call System.gc() periodically. It is not a reliable memory li
 6. Test secondary display separately from ordinary mirroring: a virtual display can add Android compositor and app workload beyond simple mirroring.
 
 A green CI build validates compilation and packaging only. It does not validate thermals on a physical Galaxy A06.
+
+
+## Thermal guard implementation
+
+DualView polls Android `dumpsys thermalservice` every 15 seconds while a stream is active. It reports Android's thermal status when exposed by the device. Critical, emergency, or shutdown status stops active streams. Moderate or severe status triggers a prominent advisory to stop the stream and use the Cool profile. If the device does not expose a parseable thermal status, DualView reports telemetry as unavailable and does not infer safety from temperature sensors. This is advisory protection, not a guarantee against overheating.
