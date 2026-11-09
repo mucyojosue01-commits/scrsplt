@@ -9,6 +9,14 @@ export { buildScrcpyArgs, parseAdbDevices };
 export interface DeviceRecord { id: string; state: "device" | "unauthorized" | "offline" | "unknown"; model?: string }
 export interface ToolStatus { adbAvailable: boolean; scrcpyAvailable: boolean; devices: DeviceRecord[] }
 export type StreamProfile = "cool" | "balanced" | "quality";
+export type ThermalLevel = "none" | "light" | "moderate" | "severe" | "critical" | "emergency" | "shutdown" | "unknown";
+export function parseThermalStatus(output: string): ThermalLevel {
+  const match = output.match(/mThermalStatus\s*[:=]\s*(\d+)/i);
+  if (!match) return "unknown";
+  const levels: ThermalLevel[] = ["none", "light", "moderate", "severe", "critical", "emergency", "shutdown"];
+  return levels[Number(match[1])] || "unknown";
+}
+
 const STREAM_PROFILES: Record<StreamProfile, { maxSize: number; fps: number; bitrate: string }> = {
   cool: { maxSize: 960, fps: 15, bitrate: "1200K" },
   balanced: { maxSize: 1280, fps: 24, bitrate: "2M" },
@@ -31,6 +39,12 @@ function parseKb(text: string, key: string): number | null {
   return match ? Number(match[1]) * 1024 : null;
 }
 export class DeviceManager {
+  private thermalTimer: NodeJS.Timeout | null = null;
+  private thermalDeviceId: string | null = null;
+  private thermalLevel: ThermalLevel = "unknown";
+  private thermalAction = "Thermal guard is idle.";
+  private thermalLastCheckedAt: number | null = null;
+
   private mirrorProcess: ChildProcess | null = null;
   private secondaryProcess: ChildProcess | null = null;
   async getStatus(): Promise<ToolStatus & { mirrorRunning: boolean; secondaryRunning: boolean }> {
@@ -53,7 +67,7 @@ export class DeviceManager {
     let cpuPercent: number | null = null; if (this.previousCpu) { const delta = totals.total - this.previousCpu.total; if (delta > 0) cpuPercent = Math.max(0, Math.min(100, (1 - (totals.idle - this.previousCpu.idle) / delta) * 100)); } this.previousCpu = totals;
     let disks: ResourceStats["pc"]["disks"] = [];
     if (process.platform === "win32") { try { const r = await execFileAsync("powershell.exe", ["-NoProfile", "-Command", "Get-CimInstance Win32_LogicalDisk -Filter \"DriveType=3\" | Select-Object DeviceID,Size,FreeSpace | ConvertTo-Json -Compress"], { windowsHide: true, timeout: 7000, maxBuffer: 1048576 }); const parsed = JSON.parse(r.stdout || "[]"); const rows = Array.isArray(parsed) ? parsed : [parsed]; disks = rows.filter((d: any) => Number(d.Size) > 0).map((d: any) => ({ name: String(d.DeviceID), total: Number(d.Size), free: Number(d.FreeSpace) })); } catch {} }
-    return { pc: { totalMemory: os.totalmem(), freeMemory: os.freemem(), appMemory: memory.rss, cpuCount: cpus.length, cpuPercent, disks }, phone, sampledAt: Date.now(), workloads: [
+    return { thermalControl: { enabled: true, level: this.thermalLevel, action: this.thermalAction, lastCheckedAt: this.thermalLastCheckedAt }, pc: { totalMemory: os.totalmem(), freeMemory: os.freemem(), appMemory: memory.rss, cpuCount: cpus.length, cpuPercent, disks }, phone, sampledAt: Date.now(), workloads: [
       { name: "Android apps and system", device: "PHONE", detail: "Application execution, services and app memory", active: Boolean(deviceId) },
       { name: "Video decode and desktop rendering", device: "PC", detail: "scrcpy video decode and Windows window rendering", active: Boolean(this.mirrorProcess || this.secondaryProcess) },
       { name: "Virtual Android display", device: "PHONE", detail: "Android creates and runs the secondary display", active: Boolean(this.secondaryProcess) },
@@ -73,6 +87,23 @@ export class DeviceManager {
     } catch { return "Could not check Android version. Reconnect the phone and try again."; }
     return null;
   }
+  private startThermalGuard(deviceId: string) {
+    this.stopThermalGuard(); this.thermalDeviceId = deviceId;
+    this.thermalAction = "Monitoring Android thermal status every 15 seconds.";
+    const check = async () => {
+      if (!this.thermalDeviceId) return;
+      try {
+        const result = await execFileAsync(command("adb.exe"), ["-s", deviceId, "shell", "dumpsys", "thermalservice"], { windowsHide: true, timeout: 6000, env: toolEnv() });
+        this.thermalLevel = parseThermalStatus(result.stdout); this.thermalLastCheckedAt = Date.now();
+        if (["critical", "emergency", "shutdown"].includes(this.thermalLevel)) { await this.stopAll(); this.thermalAction = "Stream stopped for critical Android thermal status. Let the phone cool before reconnecting."; }
+        else if (["moderate", "severe"].includes(this.thermalLevel)) this.thermalAction = "Elevated thermal status. Stop the stream and select Cool profile before continuing.";
+        else if (this.thermalLevel === "unknown") this.thermalAction = "Thermal telemetry unavailable; no automatic safety decision was made.";
+        else this.thermalAction = "Thermal status: " + this.thermalLevel + ".";
+      } catch { this.thermalLevel = "unknown"; this.thermalLastCheckedAt = Date.now(); this.thermalAction = "Thermal telemetry unavailable. Use Cool profile if the phone heats up."; }
+    };
+    void check(); this.thermalTimer = setInterval(() => void check(), 15000);
+  }
+  private stopThermalGuard() { if (this.thermalTimer) clearInterval(this.thermalTimer); this.thermalTimer = null; this.thermalDeviceId = null; this.thermalAction = "Thermal guard is idle."; }
   private launch(args: string[], assign: (child: ChildProcess | null) => void, label: string): Promise<{ ok: boolean; message: string }> {
     return new Promise((resolve) => {
       const child = spawn(command("scrcpy.exe"), args, { windowsHide: false, stdio: "ignore", env: toolEnv() });
@@ -89,11 +120,11 @@ export class DeviceManager {
     const args = ["--serial", deviceId, "--stay-awake", `--max-size=${p.maxSize}`, `--max-fps=${p.fps}`, `--video-bit-rate=${p.bitrate}`, "--video-codec=h264", "--no-audio"];
     if (orientation === "landscape") args.push("--orientation=90");
     if (orientation === "portrait") args.push("--orientation=0");
-    return this.launch(args, p => { this.mirrorProcess = p; }, "Phone screen opened with balanced streaming settings.");
+    const result = await this.launch(args, p => { this.mirrorProcess = p; }, "Phone screen opened with thermal monitoring."); if (result.ok) this.startThermalGuard(deviceId); return result;
   }
   async stopMirror() {
     if (!this.mirrorProcess || this.mirrorProcess.killed) return { ok: true, message: "Phone screen is not open." };
-    this.mirrorProcess.kill(); this.mirrorProcess = null; return { ok: true, message: "Phone screen closed." };
+    this.mirrorProcess.kill(); this.mirrorProcess = null; if (!this.secondaryProcess) this.stopThermalGuard(); return { ok: true, message: "Phone screen closed." };
   }
   async startSecondaryDisplay(deviceId: string, width: number, height: number, profile: StreamProfile = "cool") {
     if (this.secondaryProcess && !this.secondaryProcess.killed) return { ok: false, message: "The DualView desktop is already running." };
