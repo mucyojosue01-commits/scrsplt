@@ -3,25 +3,12 @@ import { execFile, spawn, ChildProcess } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { buildScrcpyArgs, parseAdbDevices } from "./adb-parser";
+import { buildScrcpyArgs, parseAdbDevices, parseThermalStatus, ThermalLevel } from "./adb-parser";
 const execFileAsync = promisify(execFile);
 export { buildScrcpyArgs, parseAdbDevices };
 export interface DeviceRecord { id: string; state: "device" | "unauthorized" | "offline" | "unknown"; model?: string }
 export interface ToolStatus { adbAvailable: boolean; scrcpyAvailable: boolean; devices: DeviceRecord[] }
 export type StreamProfile = "cool" | "balanced" | "quality";
-export type ThermalLevel = "none" | "light" | "moderate" | "severe" | "critical" | "emergency" | "shutdown" | "unknown";
-export function parseThermalStatus(output: string): ThermalLevel {
-  const match = output.match(/mThermalStatus\s*[:=]\s*(\d+)/i);
-  if (!match) return "unknown";
-  const levels: ThermalLevel[] = ["none", "light", "moderate", "severe", "critical", "emergency", "shutdown"];
-  return levels[Number(match[1])] || "unknown";
-}
-
-const STREAM_PROFILES: Record<StreamProfile, { maxSize: number; fps: number; bitrate: string }> = {
-  cool: { maxSize: 960, fps: 15, bitrate: "1200K" },
-  balanced: { maxSize: 1280, fps: 24, bitrate: "2M" },
-  quality: { maxSize: 1920, fps: 30, bitrate: "4M" }
-};
 export interface ResourceStats {
   pc: { totalMemory: number; freeMemory: number; appMemory: number; cpuCount: number; cpuPercent: number | null; disks: Array<{ name: string; total: number; free: number }> };
   phone: { totalMemory: number | null; availableMemory: number | null; thermal: string | null; storageTotal: number | null; storageFree: number | null; foregroundApp: string | null; foregroundAppMemory: string | null }; workloads: Array<{ name: string; device: "PC" | "PHONE"; detail: string; active: boolean }>; sampledAt: number;
