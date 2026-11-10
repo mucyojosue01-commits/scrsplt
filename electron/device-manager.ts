@@ -9,6 +9,12 @@ export { buildScrcpyArgs, parseAdbDevices };
 export interface DeviceRecord { id: string; state: "device" | "unauthorized" | "offline" | "unknown"; model?: string }
 export interface ToolStatus { adbAvailable: boolean; scrcpyAvailable: boolean; devices: DeviceRecord[] }
 export type StreamProfile = "cool" | "balanced" | "quality";
+
+const STREAM_PROFILES: Record<StreamProfile, { maxSize: number; fps: number; bitrate: string }> = {
+  cool: { maxSize: 960, fps: 15, bitrate: "1.2M" },
+  balanced: { maxSize: 1280, fps: 24, bitrate: "2M" },
+  quality: { maxSize: 1920, fps: 30, bitrate: "4M" }
+};
 export interface ResourceStats {
   pc: { totalMemory: number; freeMemory: number; appMemory: number; cpuCount: number; cpuPercent: number | null; disks: Array<{ name: string; total: number; free: number }> };
   phone: { totalMemory: number | null; availableMemory: number | null; thermal: string | null; storageTotal: number | null; storageFree: number | null; foregroundApp: string | null; foregroundAppMemory: string | null }; workloads: Array<{ name: string; device: "PC" | "PHONE"; detail: string; active: boolean }>; sampledAt: number; thermalControl: { enabled: boolean; level: ThermalLevel; action: string; lastCheckedAt: number | null };
