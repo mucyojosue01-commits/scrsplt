@@ -11,11 +11,11 @@ app.whenReady().then(() => {
   ipcMain.handle("dualview:status", () => manager.getStatus());
   ipcMain.handle("dualview:refresh", () => manager.getStatus());
   ipcMain.handle("dualview:resources", (_event, id?: string) => manager.getResourceStats(id));
-  ipcMain.handle("dualview:start-mirror", (_event, id: string, orientation: "auto" | "portrait" | "landscape") => manager.startMirror(id, orientation));
+  ipcMain.handle("dualview:start-mirror", (_event, id: string, orientation: "auto" | "portrait" | "landscape", profile: "cool" | "balanced" | "quality") => manager.startMirror(id, orientation, profile));
   ipcMain.handle("dualview:stop-mirror", () => manager.stopMirror());
-  ipcMain.handle("dualview:start-secondary", (_event, id: string) => {
+  ipcMain.handle("dualview:start-secondary", (_event, id: string, profile: "cool" | "balanced" | "quality") => {
     const { width, height } = screen.getPrimaryDisplay().size;
-    return manager.startSecondaryDisplay(id, width, height);
+    return manager.startSecondaryDisplay(id, width, height, profile);
   });
   ipcMain.handle("dualview:enable-multi-window", (_event, id: string) => manager.enableMultiWindow(id));
   ipcMain.handle("dualview:send-files", async (_event, id: string) => {

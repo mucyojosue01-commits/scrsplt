@@ -23,3 +23,12 @@ export function buildScrcpyArgs(deviceId: string): string[] {
     "--video-bit-rate", "8M"
   ];
 }
+
+export type ThermalLevel = "none" | "light" | "moderate" | "severe" | "critical" | "emergency" | "shutdown" | "unknown";
+export function parseThermalStatus(output: string): ThermalLevel {
+  const match = output.match(/mThermalStatus\s*[:=]\s*(\d+)/i);
+  if (!match) return "unknown";
+  const levels: ThermalLevel[] = ["none", "light", "moderate", "severe", "critical", "emergency", "shutdown"];
+  return levels[Number(match[1])] || "unknown";
+}
+
